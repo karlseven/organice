@@ -1,0 +1,178 @@
+# organice — Apache configuration for the PUBLIC directory.
+#
+# DocumentRoot must point HERE (…/organice/public), never at the project root.
+# Everything else — .env, app/, storage/ — lives one level up and must not be
+# reachable over HTTP. There is a second .htaccess at the project root as a
+# safety net for exactly that misconfiguration, but it is a net, not a plan.
+#
+# Prefer putting all of this in the vhost with AllowOverride None: Apache reads
+# .htaccess on every request and on every parent directory, which costs a stat
+# per directory per request. It lives here because a VPS control panel does not
+# always give you the vhost.
+#
+# Requires: mod_rewrite. Wants: mod_headers, mod_deflate + mod_filter,
+# mod_expires. On Debian/Ubuntu:
+#
+#   a2enmod rewrite headers deflate expires filter && systemctl reload apache2
+
+# ---------------------------------------------------------------------------
+# Basics
+# ---------------------------------------------------------------------------
+
+# -Indexes: without it, /assets/icons/ serves a directory listing.
+# -MultiViews: content negotiation would let /installation be answered by a file
+# named installation.something, quietly bypassing the front controller.
+Options -Indexes -MultiViews
+
+DirectoryIndex index.php
+AddDefaultCharset utf-8
+
+# Drops the Apache version from error pages. The version in the Server header
+# itself is ServerTokens, which is server-config only — set `ServerTokens Prod`
+# in apache2.conf. Same for `TraceEnable Off`.
+ServerSignature Off
+
+# Identity from modification time and size only. The default includes the file's
+# inode, which differs between machines, so two servers behind a load balancer
+# hand out different ETags for identical files and clients revalidate forever.
+FileETag MTime Size
+
+# ---------------------------------------------------------------------------
+# Front controller
+# ---------------------------------------------------------------------------
+RewriteEngine On
+
+# Uncomment and set if the app is mounted in a subdirectory rather than at a
+# domain root, and set APP_BASE in .env to match.
+# RewriteBase /docs
+
+# Real files (assets) are served directly; everything else is the application.
+# Directories deliberately fall through too — there is nothing to list.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ index.php [L]
+
+# HTTPS redirect. Commented out because it belongs in the vhost, and because it
+# is WRONG behind a proxy or load balancer that terminates TLS — there %{HTTPS}
+# is "off" on every request and this rule becomes an infinite redirect. Behind a
+# proxy, test X-Forwarded-Proto instead (second form).
+#
+# RewriteCond %{HTTPS} !=on
+# RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+#
+# RewriteCond %{HTTP:X-Forwarded-Proto} !https
+# RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+
+# ---------------------------------------------------------------------------
+# What may be served
+# ---------------------------------------------------------------------------
+
+# Dotfiles: .env, .git, .htaccess, editor droppings. None should be here, but a
+# deploy that copies the project root by mistake is exactly when this matters.
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>
+
+# index.php is the ONLY executable file in this directory. Anything else ending
+# in a PHP extension is either a mistake or an upload that got somewhere it
+# should not have, and in both cases refusing to serve it is right.
+#
+# Order matters: the deny is broad, the grant that follows re-allows the one
+# file. Apache merges these in source order and the later section wins.
+<FilesMatch "\.(?i:php|phtml|phps|php[0-9]|phar|inc)$">
+  Require all denied
+</FilesMatch>
+<Files "index.php">
+  Require all granted
+</Files>
+
+# NOTE: there is deliberately no per-directory "turn PHP off in assets/" block.
+# <Directory> is not valid in .htaccess — Apache answers every request with 500
+# and "<Directory not allowed here" — and php_flag/php_value only exist under
+# mod_php, so they are a fatal unknown directive on the PHP-FPM setups most VPS
+# hosts use. The FilesMatch deny above already covers every PHP extension in
+# this whole directory tree, which is the same protection without either trap.
+
+# ---------------------------------------------------------------------------
+# Headers
+# ---------------------------------------------------------------------------
+# PHP sends the full security header set for HTML (see config/config.php).
+# Static assets are served by Apache and never touch PHP, so the headers that
+# matter for them are set here.
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+
+  # Only over TLS. Sending HSTS over plain HTTP is meaningless, and sending it
+  # from a host that does not serve HTTPS pins browsers to a scheme that fails.
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" "expr=%{HTTPS} == 'on'"
+
+  # Assets are same-origin resources; nothing else should be embedding them.
+  Header set Cross-Origin-Resource-Policy "same-origin"
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# Compression
+# ---------------------------------------------------------------------------
+# The icon sprite is ~660 KB and the emoji list ~128 KB; both are text and both
+# shrink by roughly 5x. This is by far the largest single win available here.
+#
+# Guarded on mod_FILTER, not mod_deflate: AddOutputFilterByType is defined by
+# mod_filter, while mod_deflate only supplies the DEFLATE filter it names.
+# Guarding on mod_deflate alone lets this run with mod_filter absent, and an
+# unrecognised directive in .htaccess is a 500 on EVERY request — not a skipped
+# line. Enable both modules; having deflate without filter silently disables
+# compression entirely.
+# VERIFY text/html actually compresses after deploying:
+#
+#   curl -s -H 'Accept-Encoding: gzip' -D - -o /dev/null https://your.site/ | grep -i content-encoding
+#
+# It compresses under PHP-FPM, where the response's directory context is this
+# one. Under some CGI setups the PHP response is handled in the interpreter's
+# directory instead, and a filter declared here never applies to it — measured
+# on a mod_cgi rig: HTML stayed at 8.7 KB that compresses to 2.7 KB. If the
+# header is missing, move this one line into the vhost:
+#
+#   AddOutputFilterByType DEFLATE text/html
+#
+# BOTH javascript types are listed on purpose. Apache 2.4 serves .js as
+# `text/javascript` (RFC 9239 made that the standard type and retired
+# `application/javascript`), and older builds still use the application form.
+# Listing only one silently leaves every script uncompressed — measured: 29 KB
+# shipping as 29 KB while the CSS beside it went 52 KB -> 13 KB.
+<IfModule mod_filter.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml \
+                                text/javascript application/javascript \
+                                application/json application/xml \
+                                image/svg+xml application/rss+xml
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# Caching
+# ---------------------------------------------------------------------------
+<IfModule mod_expires.c>
+  ExpiresActive On
+  # HTML carries a per-request CSP nonce and the signed-in user's name.
+  # config/config.php also sends no-store; this is the belt to that's braces.
+  ExpiresByType text/html "access plus 0 seconds"
+</IfModule>
+
+<IfModule mod_headers.c>
+  # CSS and JS are requested as ?v=<filemtime>, so the URL changes whenever the
+  # file does — safe to cache forever and never revalidate.
+  <FilesMatch "\.(?i:css|js|woff2?)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # The icon and emoji data are fetched by symbols.js WITHOUT a version query,
+  # so they must stay revalidatable: cached long enough to be free in practice,
+  # but a rebuild still reaches everyone. Marking these immutable would mean a
+  # regenerated icon set never arriving for anyone who had opened the picker.
+  <FilesMatch "^(?i:lucide\.svg|lucide-index\.json|emoji\.json)$">
+    Header set Cache-Control "public, max-age=86400, must-revalidate"
+  </FilesMatch>
+
+  # Uploaded content is served by the application, not from here, so anything
+  # else static is site furniture: a day, revalidated.
+  <FilesMatch "\.(?i:png|jpe?g|gif|webp|ico)$">
+    Header set Cache-Control "public, max-age=86400"
+  </FilesMatch>
+</IfModule>

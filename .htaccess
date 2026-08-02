@@ -1,0 +1,60 @@
+# Subdirectory install: the app is reached as https://your.server/organice/
+# while the document root is a shared folder holding many projects.
+#
+# DocumentRoot cannot be pointed at public/ in that setup, so this file does two
+# jobs: it REFUSES the parts of the tree that must never be served, and it routes
+# everything else into public/. Both matter — routing alone would leave .env and
+# app/ sitting in the document root, one request away.
+#
+# Set APP_BASE in .env to match the folder, or every generated link is wrong:
+#
+#     APP_BASE=/organice
+#
+# Auto-detection cannot work here. It reads dirname(SCRIPT_NAME), which after
+# the rewrite below is "/organice/public" — so links would come out as
+# /organice/public/some-page instead of /organice/some-page.
+#
+# Rename the folder and you must change APP_BASE to match. Nothing else in here
+# hardcodes the name: the rewrite is relative, so it follows the directory.
+
+# ---------------------------------------------------------------------------
+# Refuse first, route second
+# ---------------------------------------------------------------------------
+# Order is not a style choice. If the routing rule ran first, a request for
+# /organice/.env would be rewritten to public/.env and evaluated somewhere these
+# rules no longer apply.
+RewriteEngine On
+
+# The application's own tree. None of it is web content.
+RewriteRule ^(app|config|database|docs|scripts|storage)(/|$) - [F,L]
+
+# Dotfiles anywhere beneath: .env, .git, .htaccess, editor leftovers.
+RewriteRule (^|/)\. - [F,L]
+
+# Source and data files that may sit at the root of the project.
+RewriteRule ^[^/]*\.(?i:md|sql|lock|json|ya?ml|ini|bak|log|sh|dist|example)$ - [F,L]
+
+# Everything else is the application, which lives in public/.
+RewriteCond %{REQUEST_URI} !/public/
+RewriteRule ^(.*)$ public/$1 [L]
+
+# ---------------------------------------------------------------------------
+# Belt and braces
+# ---------------------------------------------------------------------------
+# No listing of the project directory itself, and index.php is not at this
+# level — the rewrite above turns a bare /organice/ into public/ and the
+# DirectoryIndex there takes over.
+Options -Indexes -MultiViews
+
+# Nothing at THIS level is ever executable. public/.htaccess grants its own
+# index.php; this only covers the project root, where any .php file would be a
+# script that was never meant to be reachable.
+<FilesMatch "\.(?i:php|phtml|phps|php[0-9]|phar|inc)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>

@@ -1,0 +1,1201 @@
+/* organice — one stylesheet, no build step.
+   Colours are CSS variables so the dark theme is a variable swap, not a second
+   set of rules. */
+
+:root {
+  --bg:        #ffffff;
+  --bg-soft:   #f7f8fa;
+  --bg-sunk:   #eef0f4;
+  --fg:        #1c2024;
+  --fg-muted:  #5f6672;
+  --border:    #e3e6ec;
+  --accent:    #5b7cfa;
+  --accent-fg: #ffffff;
+  --danger:    #d33a3a;
+  --warn:      #b8860b;
+  --ok:        #2c8a4b;
+
+  /* Lucide's chevron-down, as a mask so it paints in currentColor and themes
+     itself. Kept here rather than inline so the two selects share one copy. */
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+
+  --sidebar-w: 280px;
+  --toc-w:     220px;
+  --topbar-h:  56px;
+  --radius:    10px;
+  --shadow:    0 1px 2px rgba(16,24,40,.06), 0 8px 24px rgba(16,24,40,.06);
+
+  /* The Latin faces come first and the CJK/Thai faces after, so a mixed
+     sentence ("run npm install แล้วรีสตาร์ท") uses the right face for each run
+     rather than letting one font's poor coverage of the other script decide.
+     Thai in particular needs a font with proper tone-mark stacking; Tahoma and
+     Leelawadee have it, most Latin UI faces do not. */
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+          "Leelawadee UI", Tahoma,
+          "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR",
+          "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, "Noto Sans JP",
+          "Microsoft YaHei", "PingFang SC", "Noto Sans SC",
+          sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  color-scheme: light;
+}
+
+/* The palette is defined once and applied from two places: the media query
+   (data-theme="auto", the default) and the explicit attribute the toggle
+   writes. The attribute rule comes second so an explicit choice always beats
+   the OS preference, in both directions. */
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="auto"] {
+    --bg:       #14161a;
+    --bg-soft:  #1a1d22;
+    --bg-sunk:  #22262d;
+    --fg:       #e6e9ef;
+    --fg-muted: #99a1af;
+    --border:   #2a2f38;
+    --shadow:   0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    color-scheme: dark;
+  }
+  :root[data-theme="auto"] .only-dark  { display: inline-flex; }
+  :root[data-theme="auto"] .only-light { display: none; }
+}
+
+:root[data-theme="dark"] {
+  --bg:       #14161a;
+  --bg-soft:  #1a1d22;
+  --bg-sunk:  #22262d;
+  --fg:       #e6e9ef;
+  --fg-muted: #99a1af;
+  --border:   #2a2f38;
+  --shadow:   0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/*
+ * `hidden` must actually hide.
+ *
+ * The browser hides [hidden] with `display: none` from its OWN stylesheet, and
+ * any author rule beats that no matter how weak the selector — so a plain
+ * `.ed-toolbar { display: flex }` silently un-hid every hidden toolbar, and both
+ * editor toolbars rendered at once. !important is the right tool here precisely
+ * because this rule must not lose to a later display: on the same element.
+ */
+[hidden] { display: none !important; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--fg);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.muted { color: var(--fg-muted); }
+.inline { display: inline; }
+
+.skip {
+  position: absolute; left: -9999px; top: 0; z-index: 100;
+  padding: 10px 16px; background: var(--accent); color: var(--accent-fg);
+}
+.skip:focus { left: 8px; top: 8px; }
+
+/* ---------------------------------------------------------------------------
+   topbar
+--------------------------------------------------------------------------- */
+.topbar {
+  position: sticky; top: 0; z-index: 40;
+  height: var(--topbar-h);
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 16px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: saturate(180%) blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  display: flex; align-items: center; gap: 8px;
+  font-weight: 650; color: var(--fg); white-space: nowrap;
+}
+.brand:hover { text-decoration: none; }
+
+.topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+
+/* Mobile only — it opens the sidebar drawer, and on desktop the sidebar is
+   always on screen so the button would do nothing.
+   The selector carries BOTH classes deliberately: the button is also an
+   .icon-btn, and `.icon-btn { display: inline-flex }` below has equal
+   specificity and comes later, so a plain `.nav-toggle` rule loses to it and
+   the hamburger shows up on desktop as a dead control. */
+.icon-btn.nav-toggle { display: none; }
+
+.icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; padding: 0;
+  border: 1px solid transparent; border-radius: 8px;
+  background: none; color: var(--fg-muted); cursor: pointer;
+}
+.icon-btn:hover { background: var(--bg-sunk); color: var(--fg); }
+
+.only-dark  { display: none; }
+:root[data-theme="dark"] .only-dark  { display: inline-flex; }
+:root[data-theme="dark"] .only-light { display: none; }
+
+/* ---------------------------------------------------------------------------
+   search
+--------------------------------------------------------------------------- */
+.searchbox {
+  position: relative; flex: 1; max-width: 460px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 10px; height: 34px;
+  background: var(--bg-soft); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--fg-muted);
+}
+.searchbox:focus-within { border-color: var(--accent); }
+.searchbox input {
+  flex: 1; border: 0; background: none; outline: none;
+  font: inherit; color: var(--fg);
+}
+.searchbox kbd {
+  padding: 1px 6px; font-size: 11px; font-family: var(--mono);
+  border: 1px solid var(--border); border-radius: 4px; background: var(--bg);
+}
+
+.search-results {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 50;
+  max-height: 60vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.search-results a {
+  display: block; padding: 10px 14px; color: var(--fg);
+  border-bottom: 1px solid var(--border);
+}
+.search-results a:last-child { border-bottom: 0; }
+.search-results a:hover, .search-results a.sel { background: var(--bg-soft); text-decoration: none; }
+.search-results .r-space { display: block; font-size: 11px; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .04em; }
+.search-results .r-title { font-weight: 600; }
+.search-results .r-ex    { display: block; font-size: 13px; color: var(--fg-muted); }
+.search-results .r-none  { padding: 14px; color: var(--fg-muted); }
+
+/* ---------------------------------------------------------------------------
+   doc shell: sidebar | article | toc
+--------------------------------------------------------------------------- */
+.doc-shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr) var(--toc-w);
+  align-items: start;
+  max-width: 1440px; margin: 0 auto;
+}
+
+.sidebar {
+  position: sticky; top: var(--topbar-h);
+  height: calc(100vh - var(--topbar-h));
+  overflow-y: auto;
+  padding: 20px 8px 40px 16px;
+  border-right: 1px solid var(--border);
+}
+
+.sidebar-head { padding: 0 8px 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.space-name { display: flex; align-items: center; gap: 8px; font-weight: 650; color: var(--fg); }
+.space-dot  { width: 10px; height: 10px; border-radius: 3px; background: var(--accent); }
+
+.nav-list { list-style: none; margin: 0; padding: 0; }
+.nav-list .nav-list { margin-left: 12px; border-left: 1px solid var(--border); padding-left: 4px; }
+.nav-item > .nav-list { display: none; }
+.nav-item.open > .nav-list { display: block; }
+
+.nav-row { display: flex; align-items: center; gap: 2px; }
+.nav-caret {
+  flex: none; width: 22px; height: 26px; padding: 0;
+  border: 0; background: none; color: var(--fg-muted); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.nav-caret svg { transition: transform .15s ease; }
+.nav-item.open > .nav-row > .nav-caret svg { transform: rotate(90deg); }
+
+.nav-link {
+  flex: 1; display: block; padding: 5px 10px; border-radius: 6px;
+  color: var(--fg-muted); font-size: 14px;
+}
+.nav-item:not(.has-children) > .nav-row > .nav-link { margin-left: 22px; }
+.nav-link:hover { background: var(--bg-soft); color: var(--fg); text-decoration: none; }
+.nav-link.active { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font-weight: 600; }
+
+.sidebar-foot { padding: 16px 8px 0; }
+
+/* ---------------------------------------------------------------------------
+   article
+--------------------------------------------------------------------------- */
+.doc-body { min-width: 0; padding: 28px 48px 80px; }
+
+.crumbs { display: flex; flex-wrap: wrap; gap: 6px; font-size: 13px; color: var(--fg-muted); margin-bottom: 10px; }
+.crumbs a { color: var(--fg-muted); }
+.crumbs a:last-child { color: var(--fg); }
+.crumbs .sep { opacity: .5; }
+
+.doc-head { display: flex; align-items: flex-start; gap: 16px; }
+.doc-head h1 { flex: 1; margin: 0 0 8px; font-size: 34px; line-height: 1.2; letter-spacing: -.02em; }
+
+.doc-foot { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--border); }
+.last-edit { font-size: 13px; }
+
+.pager { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+.pager-link {
+  display: block; padding: 12px 16px;
+  border: 1px solid var(--border); border-radius: var(--radius); color: var(--fg);
+}
+.pager-link:hover { border-color: var(--accent); text-decoration: none; }
+.pager-link.next { text-align: right; }
+.pager-label { display: block; font-size: 12px; color: var(--fg-muted); }
+.pager-title { font-weight: 600; }
+
+/* ---------------------------------------------------------------------------
+   on-this-page rail
+--------------------------------------------------------------------------- */
+.toc {
+  position: sticky; top: calc(var(--topbar-h) + 20px);
+  max-height: calc(100vh - var(--topbar-h) - 40px); overflow-y: auto;
+  padding: 28px 16px 40px 0; font-size: 13px;
+}
+.toc-head { margin: 0 0 8px; font-weight: 650; text-transform: uppercase; letter-spacing: .05em; font-size: 11px; color: var(--fg-muted); }
+.toc ul { list-style: none; margin: 0; padding: 0; }
+.toc li { margin: 2px 0; }
+.toc-l3 { padding-left: 12px; }
+.toc a { display: block; padding: 3px 8px; border-left: 2px solid transparent; color: var(--fg-muted); }
+.toc a:hover { color: var(--fg); text-decoration: none; }
+.toc a.active { border-left-color: var(--accent); color: var(--accent); }
+
+/* ---------------------------------------------------------------------------
+   prose — the rendered Markdown
+--------------------------------------------------------------------------- */
+.prose { max-width: 46rem; }
+.prose > *:first-child { margin-top: 0; }
+
+.prose h1, .prose h2, .prose h3, .prose h4 { line-height: 1.25; letter-spacing: -.01em; scroll-margin-top: calc(var(--topbar-h) + 16px); }
+.prose h2 { margin: 40px 0 12px; font-size: 24px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.prose h3 { margin: 28px 0 10px; font-size: 19px; }
+.prose h4 { margin: 22px 0 8px; font-size: 16px; }
+
+.prose .anchor { margin-left: 8px; color: var(--border); font-weight: 400; opacity: 0; }
+.prose h2:hover .anchor, .prose h3:hover .anchor, .prose h4:hover .anchor { opacity: 1; }
+
+.prose p  { margin: 0 0 16px; }
+.prose ul, .prose ol { margin: 0 0 16px; padding-left: 26px; }
+.prose li { margin: 4px 0; }
+.prose li.task { list-style: none; margin-left: -22px; }
+.prose img { max-width: 100%; height: auto; border-radius: 8px; }
+.prose hr  { border: 0; border-top: 1px solid var(--border); margin: 32px 0; }
+
+.prose blockquote {
+  margin: 0 0 16px; padding: 2px 16px;
+  border-left: 3px solid var(--border); color: var(--fg-muted);
+}
+
+.prose code {
+  padding: .15em .4em; font-family: var(--mono); font-size: .88em;
+  background: var(--bg-sunk); border-radius: 4px;
+}
+
+.code-block { position: relative; margin: 0 0 16px; }
+.code-title {
+  padding: 6px 14px; font-size: 12px; font-family: var(--mono); color: var(--fg-muted);
+  background: var(--bg-sunk); border: 1px solid var(--border); border-bottom: 0;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.code-block pre {
+  margin: 0; padding: 14px 16px; overflow-x: auto;
+  background: var(--bg-soft); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.code-title + .code-copy + pre, .code-title ~ pre { border-radius: 0 0 var(--radius) var(--radius); }
+.code-block pre code { padding: 0; background: none; font-size: 13px; line-height: 1.6; }
+
+.code-copy {
+  position: absolute; top: 8px; right: 8px; z-index: 2;
+  padding: 3px 9px; font-size: 12px;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg); color: var(--fg-muted); cursor: pointer; opacity: 0;
+}
+.code-block:hover .code-copy, .code-copy:focus { opacity: 1; }
+
+.table-wrap { overflow-x: auto; margin: 0 0 16px; }
+.prose table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.prose th, .prose td { padding: 8px 12px; border: 1px solid var(--border); text-align: left; }
+.prose th { background: var(--bg-soft); font-weight: 650; }
+.prose .ta-right  { text-align: right; }
+.prose .ta-center { text-align: center; }
+
+/* callouts */
+.callout {
+  margin: 0 0 16px; padding: 14px 16px;
+  border: 1px solid var(--border); border-left-width: 3px; border-radius: var(--radius);
+  background: var(--bg-soft);
+}
+.callout > *:last-child { margin-bottom: 0; }
+.callout-title { font-weight: 650; margin: 0 0 6px; }
+.callout-info    { border-left-color: var(--accent); }
+.callout-tip     { border-left-color: var(--ok); }
+.callout-note    { border-left-color: var(--fg-muted); }
+.callout-warning { border-left-color: var(--warn); }
+.callout-danger  { border-left-color: var(--danger); }
+
+/* syntax highlighting — token classes come from Core\Highlight.
+   Hues are chosen to hold contrast on BOTH surfaces; the dark overrides below
+   only lift lightness, so the colour identity of a token never changes when
+   the theme does. */
+.tok-comment  { color: #6b7280; font-style: italic; }
+.tok-string   { color: #0a7d55; }
+.tok-number   { color: #b45309; }
+.tok-keyword  { color: #7c3aed; font-weight: 600; }
+.tok-literal  { color: #b45309; }
+.tok-function { color: #1d4ed8; }
+.tok-variable { color: #be185d; }
+.tok-tag      { color: #7c3aed; }
+.tok-attr     { color: #1d4ed8; }
+.tok-key      { color: #1d4ed8; }
+.tok-heading  { color: #7c3aed; font-weight: 600; }
+.tok-meta     { color: #6b7280; }
+.tok-added    { color: #0a7d55; }
+.tok-removed  { color: #b91c1c; }
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="auto"] .tok-comment  { color: #7d8590; }
+  :root[data-theme="auto"] .tok-string   { color: #6ee7b7; }
+  :root[data-theme="auto"] .tok-number,
+  :root[data-theme="auto"] .tok-literal  { color: #fbbf24; }
+  :root[data-theme="auto"] .tok-keyword,
+  :root[data-theme="auto"] .tok-tag,
+  :root[data-theme="auto"] .tok-heading  { color: #c4b5fd; }
+  :root[data-theme="auto"] .tok-function,
+  :root[data-theme="auto"] .tok-attr,
+  :root[data-theme="auto"] .tok-key      { color: #7cc4ff; }
+  :root[data-theme="auto"] .tok-variable { color: #f9a8d4; }
+  :root[data-theme="auto"] .tok-added    { color: #6ee7b7; }
+  :root[data-theme="auto"] .tok-removed  { color: #fca5a5; }
+}
+:root[data-theme="dark"] .tok-comment  { color: #7d8590; }
+:root[data-theme="dark"] .tok-string   { color: #6ee7b7; }
+:root[data-theme="dark"] .tok-number,
+:root[data-theme="dark"] .tok-literal  { color: #fbbf24; }
+:root[data-theme="dark"] .tok-keyword,
+:root[data-theme="dark"] .tok-tag,
+:root[data-theme="dark"] .tok-heading  { color: #c4b5fd; }
+:root[data-theme="dark"] .tok-function,
+:root[data-theme="dark"] .tok-attr,
+:root[data-theme="dark"] .tok-key      { color: #7cc4ff; }
+:root[data-theme="dark"] .tok-variable { color: #f9a8d4; }
+:root[data-theme="dark"] .tok-added    { color: #6ee7b7; }
+:root[data-theme="dark"] .tok-removed  { color: #fca5a5; }
+
+/* ---------------------------------------------------------------------------
+   language
+--------------------------------------------------------------------------- */
+/* Thai and CJK need more line box than Latin at the same size: Thai stacks tone
+   marks above and vowels below the baseline, and CJK glyphs fill their em. At
+   Latin's 1.6 the marks collide with the line above. */
+:root:lang(th) body { line-height: 1.85; }
+:root:lang(ja) body,
+:root:lang(zh) body,
+:root:lang(ko) body { line-height: 1.8; }
+:lang(th) .prose p, :lang(th) .prose li { line-height: 1.95; }
+
+/* CJK has no spaces to break at, so long runs need character-level wrapping or
+   they push the layout sideways. */
+:lang(ja) .prose, :lang(zh) .prose { word-break: normal; overflow-wrap: anywhere; line-break: strict; }
+/* Thai has no spaces between words either, but breaking mid-cluster is wrong —
+   let the browser's Thai line breaker do it rather than forcing anywhere. */
+:lang(th) .prose { word-break: normal; overflow-wrap: break-word; }
+
+.lang-menu { position: relative; }
+.lang-btn { width: auto; gap: 4px; padding: 0 8px; }
+.lang-code { font-size: 11px; font-weight: 700; letter-spacing: .03em; }
+
+.lang-list {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 50;
+  min-width: 180px; margin: 0; padding: 4px; list-style: none;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.lang-list a {
+  display: block; padding: 7px 12px; border-radius: 6px; color: var(--fg); font-size: 14px;
+}
+.lang-list a:hover { background: var(--bg-soft); text-decoration: none; }
+.lang-list a.active { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font-weight: 600; }
+
+/* The translation-state banners sit above the article and must read as chrome,
+   not as content the author wrote. */
+.notice-lang { margin-bottom: 24px; }
+.notice-lang p:last-child { margin-bottom: 0; }
+
+.pill-untranslated { opacity: .65; font-size: 10px; }
+
+/* .ed-lang select sizing now comes from the shared toolbar control rules —
+   see `.editor-bar` further down. */
+
+.source-pane { padding: 0 0 16px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.source-head {
+  margin: 0 0 8px; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .05em; color: var(--fg-muted);
+}
+.source-text {
+  margin: 0; padding: 12px 14px; max-height: 45vh; overflow: auto;
+  white-space: pre-wrap; word-break: break-word;
+  font-family: var(--mono); font-size: 13px; line-height: 1.6;
+  background: var(--bg-soft); border: 1px solid var(--border); border-radius: var(--radius);
+}
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; margin: -1px;
+  padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   tabs / code groups
+--------------------------------------------------------------------------- */
+.tabs { margin: 0 0 16px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.tab-strip { display: flex; gap: 2px; overflow-x: auto; background: var(--bg-soft); border-bottom: 1px solid var(--border); }
+.tab-btn {
+  flex: none; padding: 8px 14px; font: inherit; font-size: 13px; font-weight: 600;
+  border: 0; border-bottom: 2px solid transparent;
+  background: none; color: var(--fg-muted); cursor: pointer; white-space: nowrap;
+}
+.tab-btn:hover { color: var(--fg); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-panel { padding: 16px; }
+.tab-panel > *:last-child { margin-bottom: 0; }
+/* a code block filling a tab should not double up the borders */
+.tab-panel > .code-block:only-child { margin: -16px; }
+.tab-panel > .code-block:only-child pre { border: 0; border-radius: 0; }
+
+/* ---------------------------------------------------------------------------
+   tooltips
+--------------------------------------------------------------------------- */
+/* One element, moved and reused — not one per trigger. `position: absolute` on
+   the document (not fixed) so it stays put while the page is scrolled by
+   assistive tech that does not fire scroll events. */
+.tip {
+  position: absolute;
+  top: 0; left: 0;
+  z-index: 90;
+  max-width: 260px;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  font-weight: 500;
+  white-space: normal;
+  color: #f7f8fa;
+  background: #22262d;
+  border-radius: 7px;
+  box-shadow: 0 4px 14px rgba(16, 24, 40, .22);
+  pointer-events: none;          /* never steals the hover it describes */
+  opacity: 0;
+  transform: translateY(-3px);
+  transition: opacity .12s ease, transform .12s ease;
+}
+.tip.visible { opacity: 1; transform: none; }
+
+/* the little arrow, flipped when the tooltip sits above its trigger */
+.tip::after {
+  content: '';
+  position: absolute;
+  left: 50%; margin-left: -5px;
+  border: 5px solid transparent;
+  top: -10px; border-bottom-color: #22262d;
+}
+.tip.above::after { top: auto; bottom: -10px; border-bottom-color: transparent; border-top-color: #22262d; }
+
+/* In dark mode the near-black bubble disappears into the page, so it inverts. */
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="auto"] .tip { background: #e6e9ef; color: #14161a; }
+  :root[data-theme="auto"] .tip::after { border-bottom-color: #e6e9ef; }
+  :root[data-theme="auto"] .tip.above::after { border-bottom-color: transparent; border-top-color: #e6e9ef; }
+}
+:root[data-theme="dark"] .tip { background: #e6e9ef; color: #14161a; }
+:root[data-theme="dark"] .tip::after { border-bottom-color: #e6e9ef; }
+:root[data-theme="dark"] .tip.above::after { border-bottom-color: transparent; border-top-color: #e6e9ef; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tip { transition: none; transform: none; }
+}
+
+/* ---------------------------------------------------------------------------
+   branding
+--------------------------------------------------------------------------- */
+.brand-logo { display: block; max-height: 28px; width: auto; }
+/* The two logos are swapped by CSS, not script, so a dark-theme reader never
+   sees a flash of the light one before JavaScript runs. */
+.brand .only-dark { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="auto"] .brand .only-dark  { display: block; }
+  :root[data-theme="auto"] .brand .only-light { display: none; }
+}
+:root[data-theme="dark"] .brand .only-dark  { display: block; }
+:root[data-theme="dark"] .brand .only-light { display: none; }
+
+.brand-slot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.brand-preview {
+  max-height: 34px; max-width: 160px;
+  padding: 4px 8px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg-soft);
+}
+.brand-preview.small { max-height: 24px; }
+/* a dark-theme logo is unreadable on the light admin page without this */
+.brand-preview.on-dark { background: #14161a; }
+.brand-clear { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 400; }
+
+.lang-checks { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.lang-check { display: inline-flex; align-items: center; gap: 6px; font-weight: 400; font-size: 14px; }
+
+.admin .card h2 { margin: 0 0 4px; font-size: 17px; }
+.settings-actions { position: sticky; bottom: 0; padding: 14px 0;
+  background: linear-gradient(to top, var(--bg) 70%, transparent); }
+
+/* ---------------------------------------------------------------------------
+   symbol / emoji picker
+--------------------------------------------------------------------------- */
+/* The wrapper turns a bare input into an input-with-a-button without changing
+   any of the layouts the field already sits in. */
+.sym-field { position: relative; display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; }
+.sym-field > input, .sym-field > textarea { flex: 1; min-width: 0; }
+
+.sym-toggle { flex: none; width: 30px; height: 30px; font-size: 15px; line-height: 1; }
+
+.sym {
+  position: absolute; z-index: 80;
+  width: min(360px, calc(100vw - 24px));
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.sym-head { display: flex; gap: 6px; padding: 10px; border-bottom: 1px solid var(--border); }
+.sym-search {
+  flex: 1; min-width: 0; padding: 7px 10px;
+  /* 16px keeps iOS from zooming the page when this gains focus */
+  font-size: 16px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--bg-soft);
+}
+.sym-clear { flex: none; }
+
+.sym-body { max-height: 320px; overflow-y: auto; padding: 6px 10px 12px; }
+
+/* Wider when the bundled icon set is on offer — a 38px grid at 360px shows six
+   per row, which turns 2000 icons into a very long thin column. */
+.sym-wide { width: min(420px, calc(100vw - 24px)); }
+.sym-wide .sym-body { max-height: 360px; }
+
+.sym-tabs { display: flex; gap: 2px; padding: 8px 10px 0; border-bottom: 1px solid var(--border); }
+.sym-tab {
+  flex: 1; padding: 7px 10px; font-size: 13px; font-weight: 600;
+  color: var(--fg-muted); background: none; border: 0;
+  border-bottom: 2px solid transparent; cursor: pointer;
+}
+.sym-tab:hover { color: var(--fg); }
+.sym-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.sym-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+
+/* The emoji list used to be grouped under headings; it is now one flat,
+   searchable grid, so .sym-group / .sym-group-title are gone. */
+.sym-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 2px; }
+
+.sym-item {
+  height: 38px;
+  /* The emoji font stack is separate from the UI stack: Segoe UI Emoji and the
+     Apple/Noto equivalents carry the colour glyphs, and without naming them
+     Windows renders many of these as flat monochrome outlines. */
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Segoe UI Symbol", var(--font);
+  font-size: 19px; line-height: 1;
+  border: 1px solid transparent; border-radius: 7px;
+  background: none; color: var(--fg); cursor: pointer;
+}
+.sym-item:hover { background: var(--bg-sunk); }
+
+/* Vector entries in the picker: they inherit colour like everywhere else, so
+   they read as muted until hovered rather than as a wall of hard black. */
+.ico-item { color: var(--fg-muted); }
+.ico-item:hover { color: var(--accent); }
+.ico-item svg { display: block; }
+.sym-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.sym-empty { padding: 16px 4px; text-align: center; font-size: 14px; }
+
+/* Loading state for the icon and emoji lists. */
+.sym-loading { display: flex; align-items: center; justify-content: center; gap: 9px; }
+.sym-spinner {
+  width: 15px; height: 15px; flex: none;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: sym-spin .6s linear infinite;
+}
+@keyframes sym-spin { to { transform: rotate(360deg); } }
+
+/* A spinner that cannot spin is just a broken ring, so show a static dot
+   instead when the reader has asked for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  .sym-spinner { animation: none; border-top-color: var(--border); background: var(--accent); }
+}
+
+/* The page icon itself, wherever it is shown */
+.page-icon {
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Segoe UI Symbol", var(--font);
+  font-style: normal;
+  line-height: 1;
+}
+.nav-link .page-icon { margin-right: 6px; font-size: 14px; }
+.doc-head .page-icon { margin-right: 10px; font-size: .9em; }
+
+/* A vector page icon. `currentColor` on the stroke is what makes it pick up the
+   accent on the active nav link and the muted grey elsewhere — the single
+   behaviour an emoji cannot have, and the reason both kinds exist. */
+.page-icon svg { display: block; }
+.page-icon:has(svg) { display: inline-flex; align-items: center; }
+
+/* Optical alignment: a 16px icon next to 14px text sits a shade low against the
+   cap height, because the glyph box is taller than the drawn shape. */
+.nav-link .page-icon svg { margin-top: -1px; }
+.doc-head .page-icon { align-self: center; }
+.doc-head h1 { display: flex; align-items: center; flex-wrap: wrap; }
+
+/* the editor's icon button sits beside the title and shows the current icon */
+.icon-picker {
+  flex: none; width: 38px; height: 38px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", var(--font);
+  font-size: 19px;
+  border: 1px dashed var(--border); border-radius: 9px;
+  background: var(--bg-soft); color: var(--fg-muted); cursor: pointer;
+}
+.icon-picker:hover { border-style: solid; border-color: var(--accent); }
+.icon-picker.has-icon { border-style: solid; color: var(--fg); }
+.icon-picker svg { display: block; }
+
+@media (max-width: 520px) {
+  /* Full-width sheet pinned to the bottom, like the dialogs.
+     `!important` is needed and is not laziness: the script positions the panel
+     with inline top/left for the desktop popover, and an inline style always
+     beats a stylesheet rule. Without it the sheet would stay wherever the
+     anchor happened to be, half off-screen. */
+  .sym {
+    position: fixed;
+    top: auto !important;
+    left: 0 !important;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    border-radius: 16px 16px 0 0;
+    border-bottom: 0;
+  }
+  .sym-body { max-height: 46vh; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .sym-item { height: 44px; font-size: 22px; }   /* comfortable touch target */
+}
+
+/* ---------------------------------------------------------------------------
+   dialogs
+--------------------------------------------------------------------------- */
+/* The <dialog> element renders in the browser's top layer, so it needs no
+   z-index and cannot be trapped under a stacking context. It is also the
+   element the browser centres for us — hence `margin: auto` rather than a
+   transform, which would fight the open/close animation. */
+.dlg {
+  width: min(440px, calc(100vw - 32px));
+  padding: 0;
+  margin: auto;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg);
+  color: var(--fg);
+  box-shadow: 0 10px 40px rgba(16, 24, 40, .18), 0 2px 8px rgba(16, 24, 40, .08);
+
+  /* Visible is the DEFAULT state, and the entrance is an animation rather than
+     a transition away from opacity: 0.
+     This matters more than it looks. A transition only advances while the tab
+     is compositing, so a dialog that starts invisible and relies on a
+     transition to appear stays invisible in a background tab — while still
+     holding modal focus. Ending up with an unclickable, unseeable focus trap is
+     far worse than losing an animation, so the animation is now purely
+     additive: if it never runs, the dialog is simply there. */
+  animation: dlg-in .15s ease;
+}
+.dlg.closing { animation: dlg-out .12s ease forwards; }
+
+/* Transform only — deliberately NOT opacity.
+   A stalled animation holds its first keyframe, so animating opacity from 0
+   reintroduces exactly the bug this was meant to remove: an invisible dialog
+   that still traps focus whenever animations are not advancing. Sliding a
+   fully-opaque card is a small motion, and the worst case is that it simply
+   appears in place. */
+@keyframes dlg-in {
+  from { transform: translateY(8px) scale(.98); }
+  to   { transform: none; }
+}
+@keyframes dlg-out {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: translateY(4px) scale(.99); }
+}
+
+.dlg::backdrop {
+  background: rgba(12, 16, 22, .45);
+  backdrop-filter: blur(2px);
+}
+
+.dlg-form { padding: 22px; display: flex; flex-direction: column; gap: 12px; }
+
+.dlg-title {
+  margin: 0; font-size: 17px; font-weight: 650; line-height: 1.3;
+  letter-spacing: -.01em;
+}
+.dlg-message { margin: 0; color: var(--fg-muted); font-size: 14.5px; line-height: 1.55; }
+.dlg-label   { font-size: 13px; font-weight: 600; color: var(--fg-muted); }
+
+.dlg-input {
+  width: 100%;
+  padding: 10px 12px;
+  /* 16px minimum: anything smaller makes iOS Safari zoom the page on focus,
+     which on a phone reads as the layout breaking. */
+  font-size: 16px;
+  border: 1px solid var(--border); border-radius: 9px;
+  background: var(--bg-soft); color: var(--fg);
+}
+.dlg-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; background: var(--bg); }
+
+.dlg-actions {
+  display: flex; justify-content: flex-end; gap: 8px;
+  margin-top: 4px;
+}
+.dlg-actions .btn { min-width: 92px; justify-content: center; }
+
+@media (max-width: 520px) {
+  /* A bottom sheet on phones: it sits under the thumb instead of in the middle
+     of the screen, and the full-width buttons are far easier to hit. */
+  .dlg {
+    width: 100%;
+    max-width: none;
+    margin: auto auto 0;
+    border-radius: 16px 16px 0 0;
+    border-bottom: 0;
+    animation: sheet-in .18s ease;
+  }
+  .dlg.closing { animation: sheet-out .14s ease forwards; }
+
+  /* rises from the bottom edge rather than scaling in the middle */
+  @keyframes sheet-in  { from { transform: translateY(100%); } to { transform: none; } }
+  @keyframes sheet-out { from { transform: none; } to { transform: translateY(100%); } }
+
+  .dlg-form { padding: 20px 18px calc(20px + env(safe-area-inset-bottom)); }
+  .dlg-actions { flex-direction: column-reverse; }
+  .dlg-actions .btn { width: 100%; padding: 12px 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* No motion, but the dialog must still be visible and must still disappear. */
+  .dlg { animation: none; }
+  .dlg.closing { animation: none; opacity: 0; }
+}
+
+/* ---------------------------------------------------------------------------
+   details / cards / steps
+--------------------------------------------------------------------------- */
+.details-block {
+  margin: 0 0 16px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg-soft);
+}
+.details-block > summary {
+  padding: 12px 16px; cursor: pointer; font-weight: 600;
+  list-style: none; display: flex; align-items: center; gap: 8px;
+}
+/* the default marker is inconsistent between browsers; a rotating caret is not */
+.details-block > summary::-webkit-details-marker { display: none; }
+.details-block > summary::before {
+  content: '▸'; color: var(--fg-muted); transition: transform .15s ease; display: inline-block;
+}
+.details-block[open] > summary::before { transform: rotate(90deg); }
+.details-block > summary:hover { color: var(--accent); }
+.details-body { padding: 0 16px 14px; }
+.details-body > *:last-child { margin-bottom: 0; }
+
+.card-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px; margin: 0 0 16px;
+}
+.card-item, .card-link {
+  display: block; padding: 16px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg); color: var(--fg);
+}
+.card-link:hover { border-color: var(--accent); box-shadow: var(--shadow); text-decoration: none; }
+.card-title { margin: 0 0 6px; font-size: 16px; font-weight: 650; }
+.card-link .card-title { color: var(--accent); }
+.card-body > *:last-child { margin-bottom: 0; }
+.card-body p { margin: 0; color: var(--fg-muted); font-size: 14px; }
+
+/* Numbers come from a counter, not from the markup, so inserting a step in the
+   middle does not mean renumbering the rest by hand. */
+.steps { list-style: none; counter-reset: step; margin: 0 0 16px; padding: 0; }
+.step {
+  position: relative; counter-increment: step;
+  padding: 0 0 20px 44px; margin: 0;
+}
+.step::before {
+  content: counter(step);
+  position: absolute; left: 0; top: 0;
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700;
+  background: var(--accent); color: var(--accent-fg);
+}
+/* the rail joining consecutive steps, stopped short on the last one */
+.step::after {
+  content: ''; position: absolute; left: 13px; top: 32px; bottom: 4px; width: 2px;
+  background: var(--border);
+}
+.step:last-child { padding-bottom: 0; }
+.step:last-child::after { display: none; }
+.step-title { margin: 4px 0 6px; font-weight: 650; }
+.step-body > *:last-child { margin-bottom: 0; }
+
+/* ---------------------------------------------------------------------------
+   embeds
+--------------------------------------------------------------------------- */
+.embed { margin: 0 0 16px; }
+.embed-play, .embed iframe {
+  display: block; width: 100%; aspect-ratio: 16 / 9;
+  border: 1px solid var(--border); border-radius: var(--radius);
+}
+.embed-play {
+  position: relative; padding: 0; overflow: hidden;
+  background: var(--bg-sunk); cursor: pointer;
+}
+.embed-play img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.embed-blank { display: block; width: 100%; height: 100%; background: var(--bg-sunk); }
+.embed-play-icon {
+  position: absolute; inset: 0; margin: auto;
+  width: 64px; height: 44px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; color: #fff; background: rgba(0,0,0,.65);
+}
+.embed-play:hover .embed-play-icon { background: #cc0000; }
+.embed-provider {
+  position: absolute; left: 10px; bottom: 10px;
+  padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;
+  color: #fff; background: rgba(0,0,0,.6);
+}
+.embed iframe { border: 0; }
+.embed-caption { margin: 8px 0 0; font-size: 13px; color: var(--fg-muted); text-align: center; }
+.embed-fallback { margin: 0 0 16px; }
+
+/* ---------------------------------------------------------------------------
+   sidebar drag and drop
+--------------------------------------------------------------------------- */
+.nav-row[draggable="true"] { cursor: grab; }
+.nav-item.dragging { opacity: .45; }
+.nav-row.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+.nav-row.drop-after  { box-shadow: inset 0 -2px 0 var(--accent); }
+.nav-row.drop-into   { background: color-mix(in srgb, var(--accent) 16%, transparent); border-radius: 6px; }
+.sidebar-hint { font-size: 11px; margin: 8px 0 0; line-height: 1.4; }
+
+/* ---------------------------------------------------------------------------
+   revision diff
+--------------------------------------------------------------------------- */
+.rev-diff { margin-top: 8px; }
+.diff-stat { margin: 0 0 6px; font-size: 12px; }
+.diff-add { color: var(--ok); font-weight: 600; }
+.diff-del { color: var(--danger); font-weight: 600; }
+
+table.diff { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+table.diff td { padding: 1px 6px; vertical-align: top; }
+.d-num { width: 1%; text-align: right; color: var(--fg-muted); user-select: none; }
+.d-txt { white-space: pre-wrap; word-break: break-word; }
+.d-add { background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.d-del { background: color-mix(in srgb, var(--danger) 14%, transparent); }
+.d-gap td { text-align: center; color: var(--fg-muted); background: var(--bg-soft); }
+
+/* ---------------------------------------------------------------------------
+   admin: members and audit
+--------------------------------------------------------------------------- */
+.member-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.member-who { flex: 1; min-width: 180px; display: flex; flex-direction: column; }
+.member-form { display: flex; gap: 6px; align-items: center; margin: 0; }
+
+.audit-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.audit-table th, .audit-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.audit-table th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--fg-muted); }
+.audit-table code { font-size: 12px; }
+/* successful sign-ins are the bulk of the rows and the least interesting */
+.audit-quiet { opacity: .6; }
+
+/* ---------------------------------------------------------------------------
+   generic bits
+--------------------------------------------------------------------------- */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; font: inherit; font-weight: 600;
+  border: 1px solid var(--accent); border-radius: 8px;
+  background: var(--accent); color: var(--accent-fg); cursor: pointer;
+}
+.btn:hover { filter: brightness(1.06); text-decoration: none; }
+.btn-sm { padding: 5px 10px; font-size: 13px; }
+.btn-block { width: 100%; justify-content: center; }
+.btn-ghost { background: none; color: var(--fg); border-color: var(--border); }
+.btn-ghost:hover { background: var(--bg-soft); filter: none; }
+.btn-danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 1px 7px; font-size: 11px; font-weight: 600;
+  border: 1px solid var(--border); border-radius: 999px; color: var(--fg-muted);
+}
+
+.card {
+  padding: 18px; margin-bottom: 12px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.card > summary { cursor: pointer; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+.flash {
+  max-width: 900px; margin: 12px auto 0; padding: 10px 16px;
+  border: 1px solid var(--border); border-left: 3px solid var(--ok);
+  border-radius: var(--radius); background: var(--bg-soft);
+}
+.flash-warn { border-left-color: var(--warn); }
+
+.form-error {
+  padding: 10px 12px; border-radius: 8px;
+  background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger);
+}
+
+input, select, textarea {
+  font: inherit; color: var(--fg);
+  padding: 8px 10px; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 8px;
+}
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+label { font-size: 13px; font-weight: 600; color: var(--fg-muted); }
+
+/* ---------------------------------------------------------------------------
+   home / spaces / search / admin
+--------------------------------------------------------------------------- */
+.home { max-width: 900px; margin: 0 auto; padding: 40px 24px 80px; }
+.home-head { margin-bottom: 32px; }
+.home-head h1 { margin: 0 0 6px; font-size: 34px; letter-spacing: -.02em; }
+.lead { margin: 0; font-size: 17px; color: var(--fg-muted); }
+
+.space-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.space-card {
+  display: block; padding: 20px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--fg); background: var(--bg);
+}
+.space-card:hover { border-color: var(--accent); box-shadow: var(--shadow); text-decoration: none; }
+.space-card-icon { color: var(--accent); }
+.space-card h2 { margin: 8px 0 4px; font-size: 18px; }
+.space-card p  { margin: 0 0 6px; color: var(--fg-muted); font-size: 14px; }
+.space-card-meta { font-size: 12px; }
+
+.empty-state { text-align: center; padding: 60px 20px; color: var(--fg-muted); }
+.empty-state h1 { color: var(--fg); }
+.error-code { font-size: 56px; font-weight: 700; margin: 0; color: var(--border); }
+
+.auth { display: flex; justify-content: center; padding: 60px 20px; }
+.auth-card { width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 8px; }
+.auth-card h1 { margin: 0; font-size: 24px; }
+.auth-card .btn { margin-top: 10px; }
+
+.search-full { display: flex; align-items: center; gap: 10px; margin: 16px 0 24px; }
+.search-full input { flex: 1; }
+
+.results { list-style: none; margin: 0; padding: 0; }
+.results li { padding: 14px 0; border-bottom: 1px solid var(--border); }
+.result-space { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--fg-muted); }
+.result-title { font-size: 17px; font-weight: 650; }
+.result-excerpt { margin: 4px 0 0; color: var(--fg-muted); font-size: 14px; }
+
+.admin-tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+.admin-tabs a { padding: 8px 14px; color: var(--fg-muted); border-bottom: 2px solid transparent; }
+.admin-tabs a.active { color: var(--fg); border-bottom-color: var(--accent); }
+.admin-tabs a:hover { text-decoration: none; }
+
+.grid-form { display: grid; grid-template-columns: 150px 1fr; gap: 10px 14px; align-items: center; margin-top: 16px; }
+.grid-form-actions { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; }
+.danger-form { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+
+/* ---------------------------------------------------------------------------
+   editor
+--------------------------------------------------------------------------- */
+.editor-body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+.editor-bar {
+  flex: none; display: flex; align-items: center; gap: 14px;
+  padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--bg-soft);
+}
+.editor-titles { flex: 1; min-width: 0; }
+.editor-title {
+  width: 100%; padding: 2px 6px; font-size: 18px; font-weight: 650;
+  border: 1px solid transparent; background: none;
+}
+.editor-title:hover { border-color: var(--border); }
+.editor-slug { display: flex; align-items: center; gap: 2px; font-size: 12px; font-family: var(--mono); padding-left: 6px; }
+.editor-slug input { padding: 1px 5px; font: inherit; border-color: transparent; background: none; }
+.editor-slug input:hover { border-color: var(--border); }
+
+.editor-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.save-state { font-size: 12px; color: var(--fg-muted); min-width: 90px; }
+
+/*
+ * One height for every control in the toolbar.
+ *
+ * They were each sized by their own padding and font, so no two ended up the
+ * same height and the row read as a pile of mismatched parts. Sizing by height
+ * with centred content means a 13px button, a native select and a segmented
+ * control all line up, and stay lined up when a translation makes a label
+ * longer.
+ */
+.editor-bar { --ctl-h: 32px; }
+.editor-bar .btn,
+.editor-bar .seg,
+.editor-bar .seg-btn,
+.editor-bar select {
+  height: var(--ctl-h);
+  font-size: 13px;
+  line-height: 1;
+}
+.editor-bar .btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 0 12px; border-radius: 8px;
+}
+
+/* Markdown / Preview is only meaningful when the two panes are STACKED and you
+   can see one at a time. On a wide screen the preview is already sitting to the
+   right, so the buttons claimed to switch to something you were looking at.
+   Shown again by the narrow-screen block further down. */
+.editor-bar .seg { display: none; }
+
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg-btn { padding: 0 12px; font: inherit; font-size: 13px; border: 0; background: var(--bg); color: var(--fg-muted); cursor: pointer; }
+.seg-btn.active { background: var(--accent); color: var(--accent-fg); }
+.seg-btn[disabled] { opacity: .45; cursor: not-allowed; }
+
+/*
+ * Selects, with the native arrow replaced.
+ *
+ * The browser default sits hard against the right edge with its own padding,
+ * which is what made these two look unrelated to the buttons beside them.
+ * appearance:none removes it; the arrow is redrawn on the wrapper at a spacing
+ * that matches the buttons' 12px.
+ *
+ * It is a MASK rather than a background image so it paints in `currentColor`
+ * and therefore themes itself — a data-URI background would need one hardcoded
+ * colour, which would be invisible in one theme or the other.
+ */
+.ed-select { position: relative; display: inline-flex; align-items: center; }
+.editor-bar .ed-select select {
+  appearance: none; -webkit-appearance: none;
+  padding: 0 30px 0 12px;
+  font-family: inherit;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--fg);
+  cursor: pointer;
+}
+.editor-bar .ed-select select:hover { background: var(--bg-soft); }
+.ed-select::after {
+  content: ''; position: absolute; right: 12px; top: 50%;
+  width: 11px; height: 11px; margin-top: -5px;
+  pointer-events: none;
+  background-color: currentColor;
+  -webkit-mask: var(--chevron) center / 11px 11px no-repeat;
+          mask: var(--chevron) center / 11px 11px no-repeat;
+}
+
+.editor-panes { flex: 1; display: flex; min-height: 0; }
+.pane { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.pane-preview { overflow-y: auto; padding: 24px 32px; border-left: 1px solid var(--border); }
+.pane-preview .prose { max-width: 44rem; margin: 0 auto; }
+
+.pane-split { flex: none; width: 5px; cursor: col-resize; background: var(--border); }
+.pane-split:hover, .pane-split:focus { background: var(--accent); }
+
+.ed-toolbar { flex: none; display: flex; gap: 2px; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.ed-toolbar button {
+  min-width: 30px; height: 28px; padding: 0 7px; font: inherit; font-size: 13px;
+  border: 1px solid transparent; border-radius: 6px;
+  background: none; color: var(--fg-muted); cursor: pointer;
+}
+.ed-toolbar button:hover { background: var(--bg-sunk); color: var(--fg); }
+.ed-toolbar-spacer { flex: 1; }
+.ed-toolbar { flex-wrap: wrap; }
+/* Groups related buttons without drawing a hard line between every one. */
+.ed-toolbar-sep { width: 1px; margin: 4px 5px; background: var(--border); }
+
+#ed-content {
+  flex: 1; width: 100%; padding: 20px 24px; resize: none;
+  border: 0; border-radius: 0; outline: none;
+  font-family: var(--mono); font-size: 14px; line-height: 1.7;
+  background: var(--bg); color: var(--fg); tab-size: 2;
+}
+
+.history-panel {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 60; width: 340px;
+  padding: 16px; overflow-y: auto;
+  background: var(--bg); border-left: 1px solid var(--border); box-shadow: var(--shadow);
+}
+.history-panel header { display: flex; align-items: center; justify-content: space-between; }
+.history-panel h2 { margin: 0; font-size: 17px; }
+.history-panel ul { list-style: none; margin: 12px 0 0; padding: 0; }
+.history-panel li { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.history-panel .rev-when { font-weight: 600; }
+.history-panel .rev-meta { color: var(--fg-muted); }
+.history-panel .rev-actions { display: flex; gap: 6px; margin-top: 6px; }
+
+/* ---------------------------------------------------------------------------
+   responsive
+--------------------------------------------------------------------------- */
+@media (max-width: 1180px) {
+  .doc-shell { grid-template-columns: var(--sidebar-w) minmax(0, 1fr); }
+  .toc { display: none; }
+}
+
+@media (max-width: 860px) {
+  .doc-shell { grid-template-columns: minmax(0, 1fr); }
+  .icon-btn.nav-toggle { display: inline-flex; }
+  .searchbox kbd { display: none; }
+
+  .sidebar {
+    position: fixed; inset: var(--topbar-h) auto 0 0; z-index: 45;
+    width: 84vw; max-width: 320px; height: auto;
+    background: var(--bg);
+    transform: translateX(-100%); transition: transform .18s ease;
+  }
+  .sidebar.open { transform: none; box-shadow: var(--shadow); }
+
+  .doc-body { padding: 20px 18px 60px; }
+  .doc-head h1 { font-size: 27px; }
+  .pager { grid-template-columns: 1fr; }
+  .grid-form { grid-template-columns: 1fr; }
+
+  /* Side-by-side preview does not fit; the editor becomes write-only and the
+     preview is reachable through the mode buttons. */
+  .editor-panes { flex-direction: column; }
+  .pane-preview, .pane-split { display: none; }
+
+  /* Here the buttons earn their place: the panes are stacked, only one shows,
+     and these are the only way to reach the preview. */
+  .editor-bar .seg { display: inline-flex; }
+
+  .editor-panes.show-preview .pane-write { display: none; }
+  .editor-panes.show-preview .pane-preview { display: flex; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}

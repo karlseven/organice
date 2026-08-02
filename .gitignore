@@ -1,0 +1,44 @@
+# --- secrets -----------------------------------------------------------------
+# Database password and MT_KEY. .env.example is committed; this never is.
+.env
+.env.*
+!.env.example
+
+# --- user content ------------------------------------------------------------
+# Uploaded page assets, sharded two levels by hash, and the white-label logo or
+# favicon set from the admin screen. These belong to the running site, not to
+# the source tree. Back them up with the database — deleting a page does not
+# delete its blobs, so this directory is not reconstructible from a dump alone.
+storage/uploads/*
+!storage/uploads/.gitkeep
+storage/brand/*
+!storage/brand/.gitkeep
+
+# --- runtime -----------------------------------------------------------------
+*.log
+storage/logs/
+storage/cache/
+
+# --- local overrides ---------------------------------------------------------
+# A machine-specific server config kept beside the shipped one.
+.htaccess.local
+*.local.php
+
+# --- editors and OS ----------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.bak
+*.orig
+*.rej
+
+# --- things this project does not use ----------------------------------------
+# No Composer or npm at any point, including deploy. If one of these ever
+# appears it is a mistake, and the lockfile is what tells you.
+/vendor/
+/node_modules/
