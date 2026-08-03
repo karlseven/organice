@@ -50,10 +50,21 @@
       .then(function (d) {
         // a stale response must not overwrite a newer render
         if (!d || mine !== previewSeq) return;
+
+        /* Which tab is open in each group, so it survives the rebuild below.
+           Read here rather than before the fetch: the author may well have
+           switched tabs while the request was in flight. */
+        var tabs = window.Tabs ? window.Tabs.capture(preview) : null;
+
         /* Rendered by the same parser the published page uses, which escapes
            all author input — the preview cannot show something the real page
            would not. */
         preview.innerHTML = d.html;
+
+        /* Every keystroke replaces the markup above, which resets each tab
+           group to its first tab. Editing the second tab of a group while
+           watching it snap back to the first on every character is unusable. */
+        if (tabs) window.Tabs.restore(preview, tabs);
       })
       .catch(function () { /* a failed preview is not worth interrupting typing */ });
   }

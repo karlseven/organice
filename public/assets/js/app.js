@@ -281,13 +281,10 @@
   // -------------------------------------------------------------------------
   // tabs / code groups
   // -------------------------------------------------------------------------
-  document.addEventListener('click', function (ev) {
-    var btn = ev.target.closest('.tab-btn');
-    if (!btn) return;
-
-    var group = btn.closest('.tabs');
-    var idx = btn.dataset.tab;
-
+  /* Show one tab of one group. Split out from the click handler so it can be
+     replayed against freshly inserted markup — the editor's live preview
+     rebuilds its HTML on every keystroke and has to put the selection back. */
+  function showTab(group, idx) {
     group.querySelectorAll('.tab-btn').forEach(function (b) {
       var on = b.dataset.tab === idx;
       b.classList.toggle('active', on);
@@ -296,6 +293,14 @@
     group.querySelectorAll('.tab-panel').forEach(function (p) {
       p.hidden = p.dataset.tab !== idx;
     });
+  }
+
+  document.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('.tab-btn');
+    if (!btn) return;
+
+    var group = btn.closest('.tabs');
+    showTab(group, btn.dataset.tab);
 
     /* Remembered by LABEL, not by index, and applied to every tab set on the
        page. Someone reading install docs on Windows wants every "macOS /
@@ -317,6 +322,35 @@
     var prefTab = localStorage.getItem('organice-tab');
     if (prefTab) syncTabs(prefTab, null);
   } catch (e) {}
+
+  /*
+   * Read and reapply which tab is open in each group under `root`.
+   *
+   * Selection is captured by LABEL rather than by tab index, because an edit
+   * may have inserted or removed a tab: after adding "yarn" before "pnpm",
+   * index 2 is a different tab than it was a keystroke ago, and restoring by
+   * index would silently switch what the author is looking at. A label that no
+   * longer exists restores nothing, leaving that group on its first tab.
+   */
+  window.Tabs = {
+    capture: function (root) {
+      return Array.prototype.map.call(root.querySelectorAll('.tabs'), function (g) {
+        var on = g.querySelector('.tab-btn.active');
+        return on ? on.textContent.trim() : null;
+      });
+    },
+    restore: function (root, state) {
+      root.querySelectorAll('.tabs').forEach(function (g, i) {
+        if (!state[i]) return;
+        var match = Array.prototype.slice.call(g.querySelectorAll('.tab-btn'))
+          .find(function (b) { return b.textContent.trim() === state[i]; });
+        /* showTab, not click(): a click would write localStorage and sync every
+           other group on the page, so re-rendering a preview would rewrite the
+           reader's saved preference as a side effect. */
+        if (match) showTab(g, match.dataset.tab);
+      });
+    }
+  };
 
   // -------------------------------------------------------------------------
   // drag-and-drop page reordering (editors only — the sidebar marks itself)
