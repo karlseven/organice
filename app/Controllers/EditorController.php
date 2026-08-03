@@ -86,7 +86,10 @@ final class EditorController
         Perm::requireWrite($space);
 
         $title  = trim((string)($in['title'] ?? '')) ?: 'Untitled';
-        $parent = (int)($in['parent_id'] ?? 0);
+        /* Clamped, not just cast: the procedure's parameter is UNSIGNED, so a
+           negative id reaches MySQL and comes back as a raw "Out of range value
+           for column 'p_parent'" 500 rather than a 404. 0 means top level. */
+        $parent = max(0, (int)($in['parent_id'] ?? 0));
 
         /* A page is always born in the DEFAULT language, whatever the creator
            happens to be browsing in. The default language is every other one's
@@ -98,8 +101,20 @@ final class EditorController
            page ends up at is (parent path + slug) and the unique key is on the
            path — a colliding slug would surface as a raw duplicate-key error
            from deep inside sp_page_paths_rebuild. */
+        $rows = DB::proc('sp_page_tree', [(int)$space['id'], 1, $lang]);
+
+        /* The parent must be a page in THIS space. Nothing the UI can do
+           produces a cross-space parent, but the id arrives in a request body:
+           without this, a crafted call could hang a page off a parent in a
+           space the caller cannot even read, inheriting that space's path as
+           its prefix. sp_page_create reads the parent's path without checking
+           whose it is, so the check has to happen here. */
+        if ($parent > 0 && !array_filter($rows, static fn(array $r): bool => (int)$r['id'] === $parent)) {
+            throw new HttpError(404, 'No such parent page.');
+        }
+
         $siblings = array_filter(
-            DB::proc('sp_page_tree', [(int)$space['id'], 1, $lang]),
+            $rows,
             static fn(array $r): bool => (int)($r['parent_id'] ?? 0) === $parent
         );
         $slug = Slug::unique(Slug::make($title), $siblings);
@@ -264,7 +279,7 @@ final class EditorController
         [$page, $space] = $this->load((int)$id, $lang);
 
         $in     = Request::json();
-        $parent = (int)($in['parent_id'] ?? 0);
+        $parent = max(0, (int)($in['parent_id'] ?? 0));   // UNSIGNED in SQL — see create()
 
         /* Placement is an intent, not an index — see sp_page_move. Anything
            unrecognised becomes 'last', which is the harmless default: the page

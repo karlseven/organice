@@ -201,8 +201,14 @@
     var btn = ev.target.closest('[data-new-page]');
     if (!btn) return;
 
+    /* Present on the "+" in each sidebar row, absent on the space-level button
+       at the foot. 0 means top level, which is what the API expects. */
+    var parent = Number(btn.dataset.parent || 0);
+
     Dialog.prompt(str('newPageLabel', 'Page title'), {
-      title: str('newPage', 'Title for the new page'),
+      title: parent
+        ? str('newSubpage', 'Title for the new subpage')
+        : str('newPage', 'Title for the new page'),
       placeholder: str('newPagePlaceholder', 'Getting started')
     }).then(function (title) {
       if (!title) return;
@@ -211,7 +217,7 @@
       return fetch(url('/api/pages'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf() },
-        body: JSON.stringify({ space_id: Number(btn.dataset.space), title: title })
+        body: JSON.stringify({ space_id: Number(btn.dataset.space), title: title, parent_id: parent })
       })
         .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
         .then(function (res) {

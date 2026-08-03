@@ -56,7 +56,22 @@ $render = static function (array $nodes, int $depth) use (&$render, $space, $cur
             $out .= ' <span class="pill pill-untranslated" title="' . e(t('lang.untranslated')) . '">'
                   . e(strtoupper(Core\I18n::defaultLang())) . '</span>';
         }
-        $out .= '</a></div>';
+        $out .= '</a>';
+
+        /* Create a page UNDER this one. Nesting has always worked — the tree,
+           the move API and the drop-into drag zone all support it — but the
+           only way to reach it was to make a top-level page and then drag it
+           onto its parent, which nobody discovers. This is the obvious door. */
+        if ($canSort) {
+            $out .= '<button class="nav-add" type="button" data-new-page'
+                  . ' data-space="' . (int)$space['id'] . '"'
+                  . ' data-parent="' . $id . '"'
+                  . ' data-tip="' . e(t('page.new_child')) . '"'
+                  . ' aria-label="' . e(t('page.new_child_of', ['title' => (string)$n['title']])) . '">'
+                  . icon('plus', 14) . '</button>';
+        }
+
+        $out .= '</div>';
 
         if ($hasKids) $out .= $render($n['children'], $depth + 1);
         $out .= '</li>';

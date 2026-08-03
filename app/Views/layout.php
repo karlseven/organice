@@ -172,6 +172,7 @@ window.T = <?= json_encode([
     'noMatches'  => t('search.no_matches'),
     // new page dialog
     'newPage'            => t('page.new_prompt'),
+    'newSubpage'         => t('page.new_sub_prompt'),
     'newPageLabel'       => t('page.new_label'),
     'newPagePlaceholder' => t('page.new_placeholder'),
     // dialog chrome
