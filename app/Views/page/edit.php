@@ -118,6 +118,32 @@ $isDefaultLang = $lang === I18n::defaultLang();
     </span>
 
     <button class="btn btn-ghost btn-sm" type="button" data-history data-tip="<?= e(t('editor.tip_history')) ?>"><?= icon('history', 14) ?> <?= e(t('editor.history')) ?></button>
+
+    <?php
+    /* Deliberately NOT next to Save. Delete is irreversible and Save is pressed
+       constantly; putting them side by side makes one misclick destructive. It
+       sits before History with a separator, is icon-only so it does not read as
+       a primary action, and only turns red on hover.
+
+       The descendant count is worked out here rather than in JavaScript: $flat
+       is the whole space already loaded for the tree, and the confirm dialog
+       has to be able to say "and its 4 subpages" BEFORE anything is deleted.
+       Counting by path prefix rather than walking parent_id catches the whole
+       subtree, not just direct children. */
+    $selfPath = (string)$page['path'];
+    $descendants = 0;
+    foreach ($flat as $row) {
+        if (strpos((string)$row['path'], $selfPath . '/') === 0) $descendants++;
+    }
+    ?>
+    <span class="ed-sep"></span>
+    <button class="icon-btn icon-btn-danger" type="button" data-delete
+            data-title="<?= e((string)($page['locale_title'] ?? $page['title'])) ?>"
+            data-kids="<?= $descendants ?>"
+            data-tip="<?= e(t('editor.tip_delete')) ?>"
+            aria-label="<?= e(t('editor.tip_delete')) ?>"><?= icon('trash', 15) ?></button>
+    <span class="ed-sep"></span>
+
     <button class="btn btn-sm" type="button" data-save data-tip="<?= e(t('editor.tip_save')) ?>"><?= e(t('editor.save')) ?></button>
     <span class="save-state" data-save-state aria-live="polite"></span>
   </div>
@@ -208,6 +234,9 @@ window.ED = {
         'preview'     => t('editor.preview'),
         'restore'     => t('editor.restore'),
         'restoreAsk'  => t('editor.restore_ask'),
+        'deleteTitle' => t('editor.delete_title'),
+        'deleteAsk'   => t('editor.delete_ask'),
+        'deleteKids'  => t('editor.delete_kids'),
         'current'     => t('editor.current'),
         'machine'     => t('lang.machine_title'),
         'translating' => t('lang.translating'),
@@ -220,6 +249,7 @@ window.ED = {
         'dlgNotice'    => t('dialog.notice'),
         'failed'       => t('dialog.failed'),
         'confirmTitle' => t('dialog.confirm_title'),
+        'deleteLabel'  => t('dialog.delete'),
         // editor-specific prompts
         'linkTitle'      => t('editor.link_title'),
         'linkLabel'      => t('editor.link_label'),

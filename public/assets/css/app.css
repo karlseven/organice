@@ -145,6 +145,20 @@ a:hover { text-decoration: underline; }
 }
 .icon-btn:hover { background: var(--bg-sunk); color: var(--fg); }
 
+/* Destructive, and only says so on approach: red at rest in a toolbar reads as
+   an error state and pulls the eye away from the work. */
+.icon-btn-danger:hover,
+.icon-btn-danger:focus-visible {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+
+/* Keeps Delete from sitting flush against Save. */
+.ed-sep {
+  flex: none; width: 1px; height: 20px; margin: 0 4px;
+  background: var(--border);
+}
+
 .only-dark  { display: none; }
 :root[data-theme="dark"] .only-dark  { display: inline-flex; }
 :root[data-theme="dark"] .only-light { display: none; }

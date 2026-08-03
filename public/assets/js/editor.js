@@ -204,6 +204,55 @@
 
   document.querySelector('[data-save]').addEventListener('click', save);
 
+  // ---------------------------------------------------------------------------
+  // delete this page
+  // ---------------------------------------------------------------------------
+  var delBtn = document.querySelector('[data-delete]');
+  if (delBtn) delBtn.addEventListener('click', function () {
+    var kids = Number(delBtn.dataset.kids || 0);
+
+    /* The subpage count is named in the question, not discovered afterwards.
+       Deleting a page takes its whole subtree with it (ON DELETE CASCADE on
+       pages.parent_id), and "delete 1 page" reading as "delete 12 pages" is
+       exactly the surprise a confirm dialog exists to prevent. */
+    var msg = kids
+      ? fill(str('deleteKids', 'Delete ":title" and its :n subpages? This cannot be undone.'),
+             { ':title': delBtn.dataset.title, ':n': kids })
+      : fill(str('deleteAsk', 'Delete ":title"? This cannot be undone.'),
+             { ':title': delBtn.dataset.title });
+
+    Dialog.confirm(msg, {
+      title: str('deleteTitle', 'Delete this page?'),
+      okLabel: str('deleteLabel', 'Delete'),
+      danger: true
+    }).then(function (ok) {
+      if (!ok) return;
+
+      delBtn.disabled = true;
+      fetch(q('/api/pages/' + ED.pageId + '/delete'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': ED.token }
+      })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+        .then(function (res) {
+          if (!res.ok) throw new Error(res.d.message || 'Could not delete the page');
+          /* Cleared before navigating, or the beforeunload guard below asks the
+             author to save changes to a page that no longer exists. */
+          dirty = false;
+          window.location.href = res.d.redirect;
+        })
+        .catch(function (err) {
+          delBtn.disabled = false;
+          Dialog.alert(err.message, { title: str('failed', 'That did not work') });
+        });
+    });
+  });
+
+  function fill(s, vars) {
+    Object.keys(vars).forEach(function (k) { s = s.split(k).join(vars[k]); });
+    return s;
+  }
+
   document.addEventListener('keydown', function (ev) {
     if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's') {
       ev.preventDefault();

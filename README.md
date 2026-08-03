@@ -91,6 +91,7 @@ than any of that.
 - The preview **keeps the tab you had open** while you edit a tab group
 - **Drag, drop or paste an image** straight into the text
 - Revision history with a **side-by-side diff** and one-click restore
+- Delete a page from the editor, with the subpage count named in the confirmation
 - Server-side syntax highlighting — no JS highlighter shipped to readers
 
 **Content blocks** (see `docs/BLOCKS.md`)

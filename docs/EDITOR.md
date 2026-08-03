@@ -40,6 +40,25 @@ block inserted directly under a line of prose sits flush against it — which is
 fine, because the parser lets tables, lists, headings, quotes, fences and `:::`
 containers all interrupt a paragraph.
 
+## Deleting a page
+
+The trash button in the editor bar, behind a confirm dialog. It sits **away from
+Save**, with a separator either side and no fill until hovered: Save is pressed
+constantly and delete is irreversible, so the two must not be neighbours.
+
+The dialog names the page, and when the page has descendants it says how many —
+"Delete "Setup" and its 3 subpages?". `pages.parent_id` cascades, so deleting a
+branch takes the branch. That count is computed in `edit.php` from `$flat` (the
+space's rows, already loaded for the tree) by **path prefix**, so it counts the
+whole subtree rather than only direct children.
+
+`dirty` is cleared before the redirect. Without that, the `beforeunload` guard
+asks the author to save changes to a page that no longer exists.
+
+Uploaded images are **not** deleted with the page — the same file may be used
+elsewhere, and older revisions may still reference it. `scripts/gc-assets.php`
+sweeps what nothing references.
+
 ## Undo and redo
 
 **Ctrl+Z** undoes, **Ctrl+Y** and **Ctrl+Shift+Z** redo. Both redo keys are
