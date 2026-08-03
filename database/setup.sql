@@ -1,6 +1,6 @@
 -- OPTIONAL hardening step: a least-privilege application user.
 --
--- database/install.ps1 does NOT run this — it installs using whatever
+-- The installers do NOT run this — they install using whatever
 -- credentials are in .env, which for a development box is usually root. Run
 -- this by hand as root when you want the application connecting with an
 -- account that can do nothing but call procedures, then point DB_USER/DB_PASS

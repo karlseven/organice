@@ -16,15 +16,54 @@ move focus, since both panes are already visible.
 The preview is rendered by `/api/preview` — the **same parser the published page
 uses**, so it cannot show something a reader would not see.
 
+Tab groups in the preview keep the tab you had open. The preview replaces its
+whole HTML on each render, which resets every tab set to its first tab —
+unusable if the thing you are editing is the *second* tab. `renderPreview()`
+therefore captures the open tab per group and reapplies it afterwards, through
+`window.Tabs` in `app.js`.
+
+Selection is remembered **by label, not by index**: insert a tab before the one
+you are on and index 2 is a different tab than it was a keystroke ago. It also
+restores with `showTab()` rather than `.click()`, because a click writes the
+reader's saved tab preference to `localStorage` and syncs every other group on
+the page — a preview re-render must not do either.
+
 ## Toolbar
 
 Wraps or prefixes the selection: bold, italic, inline code, H2, link, bullet and
 numbered lists, quote, fenced code, callout, tabs, table, and image upload.
+Every control carries a `data-tip` tooltip and an `aria-label`, since they are
+icons with no visible text.
 
 These insert Markdown at the caret. They do not insert a blank line first, so a
 block inserted directly under a line of prose sits flush against it — which is
 fine, because the parser lets tables, lists, headings, quotes, fences and `:::`
 containers all interrupt a paragraph.
+
+## Undo and redo
+
+**Ctrl+Z** undoes, **Ctrl+Y** and **Ctrl+Shift+Z** redo. Both redo keys are
+bound because Ctrl+Y is redo in Chrome but not in Firefox.
+
+The editor keeps its **own** history rather than relying on the browser's.
+Several operations legitimately assign `content.value` outright — swapping an
+upload placeholder for the real link, restoring a revision, inserting a machine
+translation — and every such assignment silently discards the browser's undo
+stack, taking everything the author typed before it. Ctrl+Z then does nothing,
+with no clue which edit killed it.
+
+So `editor.js` keeps a stack of snapshots (value + selection, capped at 300) and
+handles both keys itself:
+
+- Typing is **coalesced** — a snapshot per keystroke would mean hundreds of
+  presses to undo a paragraph. A 400 ms pause ends a step.
+- Toolbar edits, uploads, translations and revision loads each commit one step,
+  so they are undoable rather than unwinding to a stale document.
+- A fresh edit after undoing discards the redo tail.
+
+Toolbar edits still go through `execCommand('insertText')`, which is the only
+textarea mutation a browser records as a user edit. That is now belt and braces
+rather than the mechanism: the explicit stack is what Ctrl+Z actually reads.
 
 ## Rich text, and why it is gone
 

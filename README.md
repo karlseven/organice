@@ -75,7 +75,8 @@ than any of that.
 - **Spaces** — independent documentation sets, each with its own tree, members
   and accent colour. Or run in single-space mode, where the space disappears
   from the UI entirely and the site is one manual.
-- **Nested page tree**, reordered by dragging in the sidebar
+- **Nested page tree** — add a subpage with the `+` on any sidebar row, or drag
+  a page onto another to nest it; drag between rows to reorder
 - **Page icons** — a searchable picker over 2,007 bundled Lucide line icons and
   1,907 emoji, all served from your own server
 - **Redirects** kept automatically when a page is renamed or moved, so published
@@ -87,6 +88,7 @@ than any of that.
 - **Undo/redo that survives everything** — Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z, covering
   toolbar edits, uploads and revision loads as well as typing
 - Toolbar with tooltips, Ctrl+B / Ctrl+I / Ctrl+K, Tab to indent
+- The preview **keeps the tab you had open** while you edit a tab group
 - **Drag, drop or paste an image** straight into the text
 - Revision history with a **side-by-side diff** and one-click restore
 - Server-side syntax highlighting — no JS highlighter shipped to readers

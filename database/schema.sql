@@ -1,5 +1,7 @@
 -- organice — schema
--- MySQL 8.0+. Run with database/setup.sql, or database/install.ps1.
+-- MySQL 8.0+. Run with database/install.sh (Linux/macOS) or install.ps1
+-- (Windows). By hand, name the database — there is no USE statement here:
+--   mysql -u root -p -D organice < database/schema.sql
 -- See docs/DATABASE.md for the reasoning behind each table.
 
 SET NAMES utf8mb4;

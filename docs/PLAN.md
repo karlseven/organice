@@ -4,9 +4,11 @@
 
 - Spaces with public / internal / private visibility and per-space membership,
   managed in `/admin/spaces/{id}/members`
-- Page tree: nesting, drag-and-drop reordering, reparenting, drafts, redirects
-  on rename
-- Markdown editor with live preview, formatting toolbar, paste/drop uploads
+- Page tree: nesting (the `+` on a sidebar row, or drag onto another page),
+  drag-and-drop reordering, reparenting, drafts, redirects on rename
+- Markdown editor with live preview, formatting toolbar, paste/drop uploads,
+  an explicit undo/redo history, and tooltips on every control
+- Page icons: 2,007 bundled Lucide icons and 1,907 emoji, searchable, self-hosted
 - Tabs and code groups (`:::tabs` with `=== Label` panels), callouts
 - Server-side syntax highlighting (`Core\Highlight`)
 - Revision history with a line diff and restore (restore appends, never deletes)
@@ -28,29 +30,24 @@
 
 ### 0. The security gaps that matter first
 
-`docs/SECURITY.md` lists them all. The two that should be closed before this is
+`docs/SECURITY.md` lists them all. The one that should be closed before this is
 reachable from the public internet:
 
-- **Password reset.** There is no email path at all today; if the only admin
-  forgets their password, recovery is writing a bcrypt hash into the database by
-  hand.
-- **Rate limiting beyond the login form.** `/api/search` runs a FULLTEXT query
-  per call and is anonymous on public spaces.
+- **Password reset.** There is no email path at all today. Recovery for a
+  locked-out admin is `scripts/set-credentials.php` over SSH, which is fine for
+  one operator and not fine for a team.
 
-### 1. WYSIWYG mode
+Rate limiting beyond the login form is **done** — `/search`, `/api/search`,
+`/api/preview` and `/api/pages/*/translate` are all limited per address, and
+both limiters fail open so that losing the limiter's own table cannot take the
+site down.
 
-The seam is already there. `page/edit.php` has a Markdown/Rich-text switch (the
-second is disabled), and `editor.js` treats the textarea value as the single
-source of truth for the document.
+### 1. WYSIWYG mode — built, then removed
 
-To add it: vendor a ProseMirror or TipTap bundle into
-`public/assets/js/`, give it a `getValue()`/`setValue()` pair that serialises
-to and from the same Markdown string, and have the mode switch swap which
-surface owns that string. **Nothing server-side changes** — `save()` posts
-Markdown either way, which is why there is no `format` column anywhere.
-
-The work that is genuinely hard is the serialiser round-tripping callouts and
-code-block titles without mangling them. Test that first, before the UI.
+Not a plan item any more. It was implemented and taken out again at the
+maintainer's request; `docs/EDITOR.md` records what it did, why it went, and the
+two rules to keep if anyone revisits it. The mode switch in `page/edit.php` is
+now Markdown/Preview, not Markdown/Rich-text.
 
 ### 2. Page-level permissions
 

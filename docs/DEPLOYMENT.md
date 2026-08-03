@@ -63,8 +63,17 @@ chmod 640 /var/www/organice/.env
 ## 3. Database
 
 ```bash
-mysql -u root -p < database/schema.sql
-mysql -u root -p < database/procedures.sql
+sh database/install.sh        # reads .env, creates the database, runs both files
+```
+
+Or by hand. **Name the database** — neither `.sql` file contains a `USE`
+statement, which is what lets you install into a database of any name, and which
+also means piping them in without `-D` fails with *No database selected*:
+
+```bash
+mysql -u root -p -e "CREATE DATABASE organice CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;"
+mysql -u root -p -D organice < database/schema.sql
+mysql -u root -p -D organice < database/procedures.sql
 ```
 
 `schema.sql` starts with `ALTER DATABASE ... COLLATE utf8mb4_0900_ai_ci`. Do not

@@ -53,6 +53,20 @@ allows many NULLs in a unique index, which would let two root pages collide.
 `Core\Tree` turns the flat rows into the nested sidebar, the reading-order
 sequence for prev/next, and the breadcrumb — one query, three shapes.
 
+Nesting is reached two ways, both landing on the same `parent_id`:
+
+- the **`+` on each sidebar row**, which posts `parent_id` to `POST /api/pages`
+  and opens the editor on the new child;
+- **dragging** a page onto the middle third of another row (the top and bottom
+  quarters reorder among siblings instead) — `POST /api/pages/{id}/move`.
+
+`parent_id` arrives in a request body in both cases, so both handlers check it
+is a page in the space being written to. `sp_page_create` reads the parent's
+path without asking whose space it is, so without that check a crafted request
+could hang a page off a parent in a space the caller cannot read. Both also
+clamp it to `>= 0`: the procedure parameter is `UNSIGNED`, and a negative value
+otherwise surfaces as a raw MySQL range error rather than a 404.
+
 ## Rendering
 
 `Core\Markdown` is a hand-written CommonMark subset plus `:::` containers
