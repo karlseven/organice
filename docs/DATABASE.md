@@ -13,7 +13,7 @@ MySQL 8.0+, InnoDB, `utf8mb4_0900_ai_ci` throughout.
 | `page_revisions` | Append-only history. Markdown **and** rendered HTML. |
 | `page_search` | One row per page, `FULLTEXT(title, body_text)`. |
 | `redirects` | Old path → page, written on every rename and move. |
-| `assets` | Uploaded file metadata; the bytes live in `storage/uploads`. |
+| `assets` | Uploaded file metadata; the bytes live in `storage/uploads`. `folder` is a virtual path for the media library — see docs/EDITOR.md. |
 | `settings` | Site-wide key/value. |
 
 ## Why some of it looks the way it does

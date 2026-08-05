@@ -67,6 +67,7 @@ final class AssetController
         $r = Uploader::store($_FILES['file'], $spaceId);
 
         json_out([
+            'id'       => $r['id'],
             'url'      => url('/file/' . $r['sha'] . '/' . rawurlencode($r['filename'])),
             'filename' => $r['filename'],
             'mime'     => $r['mime'],

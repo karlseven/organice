@@ -302,10 +302,18 @@ CREATE TABLE assets (
   mime        VARCHAR(100)    NOT NULL,
   size_bytes  INT UNSIGNED    NOT NULL,
   uploaded_by BIGINT UNSIGNED NULL,
+  /* A VIRTUAL path for the media library — 'screenshots/v2', or '' for the
+     root. The bytes on disk are addressed by hash and never move; only this
+     label does, which is what makes "move to folder" a single UPDATE and
+     keeps two pages referencing the same file working while it is reorganised.
+     No leading or trailing slash; Core\Uploader::folder() enforces that. */
+  folder      VARCHAR(255)    NOT NULL DEFAULT '',
   created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_asset (space_id, sha256),
   KEY ix_asset_sha (sha256),
+  -- the library lists one space's folder at a time, newest first
+  KEY ix_asset_folder (space_id, folder, id),
   CONSTRAINT fk_asset_space FOREIGN KEY (space_id)    REFERENCES spaces (id) ON DELETE CASCADE,
   CONSTRAINT fk_asset_user  FOREIGN KEY (uploaded_by) REFERENCES users  (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

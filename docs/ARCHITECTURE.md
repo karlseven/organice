@@ -67,6 +67,23 @@ could hang a page off a parent in a space the caller cannot read. Both also
 clamp it to `>= 0`: the procedure parameter is `UNSIGNED`, and a negative value
 otherwise surfaces as a raw MySQL range error rather than a 404.
 
+## Uploads and the media library
+
+Uploaded bytes are content-addressed: `storage/uploads/ab/cd/<sha256>`, outside
+the web root, served only through `AssetController` after a permission check.
+Identical bytes uploaded twice are one file.
+
+`assets.folder` is a **virtual** path (`screenshots/v2`) used by the media
+library at `/media`. Nothing on disk moves when a file is filed — the label is
+all that changes — which is why reorganising the library cannot break a page
+that already references an image. A folder exists only because rows carry its
+name, so there is no folder table and no empty folder to clean up.
+
+`MediaController` scopes every operation to one space, and re-checks that the
+asset id in a request body belongs to it: `sp_asset_create` and friends take an
+id, and without that check someone with write access to any space could move,
+rename or delete rows belonging to a private space they cannot read.
+
 ## Rendering
 
 `Core\Markdown` is a hand-written CommonMark subset plus `:::` containers

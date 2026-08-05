@@ -4,6 +4,46 @@ Everything an author can write beyond plain Markdown. All of it is parsed in
 `Core\Markdown` at save time and cached as HTML — **after changing the parser,
 run `php scripts/rerender.php`** or existing pages keep their old markup.
 
+## Colour
+
+Nine named colours, from the editor toolbar's palette button or by hand:
+
+```markdown
+{red}(does not apply to trial accounts)
+{bg:yellow}(check this before upgrading)
+==plain highlight==
+```
+
+| | |
+|---|---|
+| `{red}(text)` | colours the letters |
+| `{bg:red}(text)` | highlights behind the letters |
+| `==text==` | highlight in the default yellow |
+| `{bg:red}` at the **start of a table cell** | shades the whole cell |
+
+```markdown
+| Feature | 1.x | 2.x |
+| --- | --- | --- |
+| Git sync | {bg:red}No | {bg:red}No |
+| Folders | {bg:red}No | {bg:green}Yes |
+```
+
+The palette is `red orange yellow green teal blue purple pink grey`. **Any other
+name is left as literal text** — `{maroon}(x)` renders as `{maroon}(x)`, so a
+typo is visible to whoever made it rather than silently dropping the words.
+
+**Why names and not hex.** Each name maps to a CSS variable with a light *and* a
+dark value. A hex code picked against a white page is frequently unreadable on a
+dark one, and once it is in a thousand pages there is no fixing it. It also
+keeps an author-supplied string out of the emitted markup entirely.
+
+Cell shading needs the marker at the very start of the cell because the inline
+form cannot express it: `{bg:red}(text)` tints as far as the last letter and
+leaves the rest of the cell bare.
+
+Colour markers are stripped from the search index, so searching for "red" does
+not return every page that happens to use red text.
+
 ## Callouts
 
 ```

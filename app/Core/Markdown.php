@@ -27,6 +27,22 @@ namespace Core;
  */
 final class Markdown
 {
+    /**
+     * The colour palette authors may name.
+     *
+     * A fixed set, because the name becomes a CSS class: `tx-red` resolves to
+     * a variable with a light and a dark value in app.css. Free-form hex would
+     * put an author-controlled string in the markup AND guarantee that colours
+     * picked against one theme are illegible in the other.
+     *
+     * Keep in step with the --tx-* / --mk-* variables in app.css and the
+     * swatches in the editor toolbar.
+     */
+    private const COLOURS = [
+        'red' => 1, 'orange' => 1, 'yellow' => 1, 'green' => 1, 'teal' => 1,
+        'blue' => 1, 'purple' => 1, 'pink' => 1, 'grey' => 1,
+    ];
+
     /** @return array{html:string, toc:array<int,array{level:int,text:string,id:string}>, text:string} */
     public static function render(string $md): array
     {
@@ -522,16 +538,16 @@ final class Markdown
 
         $th = '';
         foreach ($cells($head) as $k => $c) {
-            $cls = ($aligns[$k] ?? '') !== '' ? ' class="ta-' . $aligns[$k] . '"' : '';
-            $th .= '<th' . $cls . '>' . $this->inline($c) . '</th>';
+            [$c, $bg] = $this->cellColour($c);
+            $th .= '<th' . $this->cellClass($aligns[$k] ?? '', $bg) . '>' . $this->inline($c) . '</th>';
         }
 
         $tb = '';
         foreach ($rows as $r) {
             $tb .= '<tr>';
             foreach ($cells($r) as $k => $c) {
-                $cls = ($aligns[$k] ?? '') !== '' ? ' class="ta-' . $aligns[$k] . '"' : '';
-                $tb .= '<td' . $cls . '>' . $this->inline($c) . '</td>';
+                [$c, $bg] = $this->cellColour($c);
+                $tb .= '<td' . $this->cellClass($aligns[$k] ?? '', $bg) . '>' . $this->inline($c) . '</td>';
             }
             $tb .= '</tr>';
         }
@@ -540,6 +556,32 @@ final class Markdown
            instead of pushing the whole page sideways on a phone. */
         return '<div class="table-wrap"><table><thead><tr>' . $th . '</tr></thead>'
              . '<tbody>' . $tb . '</tbody></table></div>';
+    }
+
+    /**
+     * Pull a leading `{bg:red}` off a table cell.
+     *
+     * Shading a whole CELL is a different thing from colouring the words in it,
+     * and the inline form cannot express it: `{bg:red}(text)` wraps the text, so
+     * the tint stops at the last letter and leaves the rest of the cell blank.
+     * A marker at the START of the cell, with no parentheses, means the cell.
+     *
+     * @return array{0:string,1:string} the cell without the marker, and the colour ('' if none)
+     */
+    private function cellColour(string $cell): array
+    {
+        if (!preg_match('/^\{bg:([a-z]{3,10})\}\s*/', $cell, $m)) return [$cell, ''];
+        if (!isset(self::COLOURS[$m[1]]))                         return [$cell, ''];
+        return [substr($cell, strlen($m[0])), $m[1]];
+    }
+
+    /** Alignment and cell shading share one class attribute. */
+    private function cellClass(string $align, string $bg): string
+    {
+        $c = [];
+        if ($align !== '') $c[] = 'ta-' . $align;
+        if ($bg !== '')    $c[] = 'cell-' . $bg;
+        return $c === [] ? '' : ' class="' . implode(' ', $c) . '"';
     }
 
     private function codeBlock(string $code, string $lang, string $title): string
@@ -636,6 +678,30 @@ final class Markdown
         $text = preg_replace('/~~(?=\S)(.+?)(?<=\S)~~/s', '<del>$1</del>', $text) ?? $text;
         $text = preg_replace('/==(?=\S)(.+?)(?<=\S)==/s', '<mark>$1</mark>', $text) ?? $text;
 
+        /*
+         * Colour: {red}(text) for the letters, {bg:red}(text) to highlight.
+         *
+         * A named palette, not a hex value. Two reasons, and the second is the
+         * one that matters: a class resolves to a CSS variable that has a light
+         * and a dark value, so #c0392b chosen against a white background does
+         * not become unreadable the moment a reader switches to dark mode. And
+         * a fixed set means the emitted class can never be author-controlled.
+         *
+         * An unknown name is left as literal text rather than dropped —
+         * "{maroon}(careful)" is then visibly wrong to whoever typed it,
+         * instead of silently losing the word.
+         */
+        $text = preg_replace_callback(
+            '/\{(bg:)?([a-z]{3,10})\}\(([^()]*)\)/',
+            static function (array $m): string {
+                if (!isset(self::COLOURS[$m[2]])) return $m[0];
+                return $m[1] !== ''
+                    ? '<mark class="mk-' . $m[2] . '">' . $m[3] . '</mark>'
+                    : '<span class="tx-' . $m[2] . '">' . $m[3] . '</span>';
+            },
+            $text
+        ) ?? $text;
+
         // a hard break is two trailing spaces, as in CommonMark
         $text = preg_replace('/ {2,}\n/', "<br>\n", $text) ?? $text;
 
@@ -685,6 +751,14 @@ final class Markdown
         $t = preg_replace('/^\s{0,3}#{1,6}\s+/m', '', $t) ?? $t;
         $t = preg_replace('/^\s*>\s?/m', '', $t) ?? $t;
         $t = preg_replace('/^\s*([-*+]|\d{1,9}[.)])\s+/m', '', $t) ?? $t;
+
+        /* Colour markers: keep the words, drop the colour name. Without this
+           the search index contains "red", "bg" and "green" as ordinary terms,
+           so searching for "red" returns every page that merely uses red text
+           — and the marker would show up verbatim in a result snippet. */
+        $t = preg_replace('/\{(?:bg:)?[a-z]{3,10}\}\(([^()]*)\)/', '$1', $t) ?? $t;
+        $t = preg_replace('/\{bg:[a-z]{3,10}\}/', ' ', $t) ?? $t;   // table cells
+
         $t = preg_replace('/[*_~=|#]+/', ' ', $t) ?? $t;
         $t = preg_replace('/\s+/u', ' ', $t) ?? $t;
         return trim($t);

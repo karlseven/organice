@@ -70,15 +70,56 @@ final class Uploader
 
         $name = self::safeName((string)($file['name'] ?? 'file'), self::ALLOWED[$mime]);
 
-        DB::proc('sp_asset_create', [$spaceId, $sha, $name, $mime, (int)$file['size'], Auth::id()]);
+        /* The row's id comes back so a caller can act on the asset straight
+           away — the media library files a fresh upload into whichever folder
+           is open, and without an id it would have to guess which row it just
+           made. Note this is an upsert: re-uploading identical bytes returns
+           the EXISTING row, which is the same file and the right answer. */
+        $row = DB::procOne('sp_asset_create', [$spaceId, $sha, $name, $mime, (int)$file['size'], Auth::id()]);
 
-        return ['sha' => $sha, 'filename' => $name, 'mime' => $mime, 'size' => (int)$file['size']];
+        return [
+            'id'       => (int)($row['id'] ?? 0),
+            'sha'      => $sha,
+            'filename' => $name,
+            'mime'     => $mime,
+            'size'     => (int)$file['size'],
+        ];
     }
 
     /** Absolute path of a stored blob. */
     public static function path(string $sha): string
     {
         return UPLOAD_PATH . '/' . substr($sha, 0, 2) . '/' . substr($sha, 2, 2) . '/' . $sha;
+    }
+
+    /**
+     * Normalise a media-library folder path.
+     *
+     * The folder is a LABEL on a database row, never a filesystem path — the
+     * bytes live at storage/uploads/<hash>. So this is not defending against
+     * traversal, which has nothing to reach; it is keeping the label canonical
+     * so that 'a/b', '/a/b/' and 'a//b' are one folder rather than three, and
+     * the prefix arithmetic in sp_asset_folder_rename stays sound.
+     *
+     * Returns '' for the root.
+     */
+    public static function folder(string $raw): string
+    {
+        $parts = [];
+        foreach (explode('/', str_replace('\\', '/', $raw)) as $seg) {
+            $seg = trim($seg);
+            /* '.' and '..' are meaningless for a label and would make a
+               folder that no query could ever match cleanly. */
+            if ($seg === '' || $seg === '.' || $seg === '..') continue;
+            $seg = preg_replace('/[^\w .()\x{00C0}-\x{FFFF}-]+/u', '-', $seg) ?? '';
+            $seg = trim(substr($seg, 0, 60), '-. ');
+            if ($seg !== '') $parts[] = $seg;
+            /* Deep enough for any real organisation, and it bounds the column:
+               eight 60-character segments still fit VARCHAR(255) once joined
+               only if we also cap the total, which the substr below does. */
+            if (count($parts) >= 8) break;
+        }
+        return substr(implode('/', $parts), 0, 255);
     }
 
     /**

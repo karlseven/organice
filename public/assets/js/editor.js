@@ -297,6 +297,128 @@
   });
 
   // ---------------------------------------------------------------------------
+  // colour
+  // ---------------------------------------------------------------------------
+  /*
+   * Three things share one popover, because they are the same question asked
+   * about different targets: the letters, the space behind them, and the table
+   * cell they sit in. A table cell cannot be expressed inline — {bg:red}(x)
+   * would tint only as far as the last letter — so it gets its own form,
+   * a marker at the start of the cell.
+   */
+  var colWrap = document.querySelector('[data-colour-wrap]');
+  if (colWrap) {
+    var colBtn = colWrap.querySelector('[data-colour-toggle]');
+    var colPop = colWrap.querySelector('[data-colour-pop]');
+
+    /* Every existing colour marker, for the "remove colour" action. Written
+       once here so the stripper and the parser cannot disagree about the
+       syntax. */
+    var TX_RE   = /\{(?:bg:)?[a-z]{3,10}\}\(([^()]*)\)/g;
+    var CELL_RE = /^\s*\{bg:[a-z]{3,10}\}\s*/;
+
+    var closeCol = function () {
+      colPop.hidden = true;
+      colBtn.setAttribute('aria-expanded', 'false');
+    };
+
+    colBtn.addEventListener('click', function () {
+      var open = colPop.hidden;
+      colPop.hidden = !open;
+      colBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+
+    document.addEventListener('click', function (ev) {
+      if (!colWrap.contains(ev.target)) closeCol();
+    });
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape') closeCol();
+    });
+
+    colPop.addEventListener('click', function (ev) {
+      var sw = ev.target.closest('[data-colour], [data-colour-bg], [data-colour-cell]');
+      if (!sw && !ev.target.closest('[data-colour-clear]')) return;
+      closeCol();
+
+      if (ev.target.closest('[data-colour-clear]')) return stripColour();
+
+      if (sw.dataset.colour)    return paint('{' + sw.dataset.colour + '}(', ')');
+      if (sw.dataset.colourBg)  return paint('{bg:' + sw.dataset.colourBg + '}(', ')');
+      return cellColour(sw.dataset.colourCell);
+    });
+
+    /* Re-colouring replaces the existing marker instead of nesting a second one
+       — {red}({blue}(x)) is not something the parser accepts, and it is what
+       you get if picking a colour twice just wraps again. */
+    function paint(open, close) {
+      var s = content.selectionStart, e = content.selectionEnd;
+      var text = content.value.slice(s, e);
+      if (!text) return wrap(open, close, 'text');
+
+      text = text.replace(TX_RE, '$1');
+      edit(s, e, open + text + close);
+      histCommit();
+      markDirty();
+      schedulePreview();
+    }
+
+    function stripColour() {
+      var s = content.selectionStart, e = content.selectionEnd;
+      if (s === e) return;
+      var text = content.value.slice(s, e).replace(TX_RE, '$1');
+      edit(s, e, text);
+      histCommit();
+      markDirty();
+      schedulePreview();
+    }
+
+    /*
+     * Shade the table cell the caret is in.
+     *
+     * The cell is found by scanning the current LINE between pipes, which is
+     * what a Markdown table row is. Outside a table there is no cell to shade,
+     * so this says so rather than inserting a marker that would render as
+     * literal text in a paragraph.
+     */
+    function cellColour(colour) {
+      var v = content.value;
+      var caret = content.selectionStart;
+      var from = v.lastIndexOf('\n', caret - 1) + 1;
+      var to = v.indexOf('\n', caret);
+      if (to === -1) to = v.length;
+
+      var line = v.slice(from, to);
+      if (line.indexOf('|') === -1) {
+        Dialog.alert(str('colourNotCell', 'Put the caret inside a table cell first.'),
+                     { title: str('colourCell', 'Table cell colour') });
+        return;
+      }
+
+      // cell boundaries around the caret, within this row
+      var start = v.lastIndexOf('|', caret - 1);
+      var end = v.indexOf('|', caret);
+      if (start < from || end === -1 || end > to) {
+        Dialog.alert(str('colourNotCell', 'Put the caret inside a table cell first.'),
+                     { title: str('colourCell', 'Table cell colour') });
+        return;
+      }
+
+      /* The cell's own leading space is measured BEFORE the old marker is
+         stripped. Taking it afterwards loses it — CELL_RE eats the whitespace
+         along with the marker — so every re-colour would pull the text one
+         space closer to the pipe and quietly mangle the author's formatting. */
+      var cell = v.slice(start + 1, end);
+      var lead = cell.match(/^\s*/)[0];
+      var body = cell.slice(lead.length).replace(/^\{bg:[a-z]{3,10}\}\s*/, '');
+
+      edit(start + 1, end, lead + '{bg:' + colour + '}' + body);
+      histCommit();
+      markDirty();
+      schedulePreview();
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // language: switching, machine translation, source pane
   // ---------------------------------------------------------------------------
   // ---------------------------------------------------------------------------
@@ -535,6 +657,81 @@
   // uploads: button, paste, drag and drop
   // ---------------------------------------------------------------------------
   document.querySelector('[data-upload]').addEventListener('click', function () { fileIn.click(); });
+
+  // ---------------------------------------------------------------------------
+  // media library picker
+  // ---------------------------------------------------------------------------
+  /*
+   * Opens the same library markup the /media page uses, inside a dialog, and
+   * drops the chosen file's Markdown at the caret.
+   *
+   * The markup is fetched rather than duplicated in this file: one definition
+   * of a grid, a folder tree and their labels, translated once. It is fetched
+   * on FIRST OPEN, not at page load — an author who never reuses an image
+   * should not pay for a library they did not ask for.
+   */
+  var libBtn = document.querySelector('[data-library]');
+  var libHtml = null;
+
+  if (libBtn) libBtn.addEventListener('click', function () {
+    libBtn.disabled = true;
+
+    /* Where the caret is RIGHT NOW, before a modal dialog takes focus.
+       showModal() moves focus into the dialog, and by the time something is
+       chosen the textarea's selection has collapsed to 0 — so the image lands
+       at the top of the document instead of where the author was working. */
+    var at = { s: content.selectionStart, e: content.selectionEnd };
+
+    var got = libHtml
+      ? Promise.resolve(libHtml)
+      : fetch(url('/media?space=' + ED.spaceId + '&partial=1'), { headers: { 'Accept': 'text/html' } })
+          .then(function (r) {
+            if (!r.ok) throw new Error(str('mediaFail', 'The library could not be opened'));
+            return r.text();
+          })
+          .then(function (html) { libHtml = html; return html; });
+
+    got
+      .then(function (html) {
+        libBtn.disabled = false;
+
+        /* Parsed into a node before it goes anywhere near the dialog:
+           Dialog.panel takes a node, not a string, so that no future caller can
+           pass it a filename. <template> parses inert — no image starts
+           loading, no script would run — until it is adopted below. */
+        var tpl = document.createElement('template');
+        tpl.innerHTML = html;
+
+        var lib = tpl.content.querySelector('[data-media]');
+        if (!lib) throw new Error(str('mediaFail', 'The library could not be opened'));
+        lib.dataset.picker = '1';
+
+        var dlg = Dialog.panel({
+          title: str('mediaTitle', 'Media library'),
+          node: lib,
+          wide: true
+        });
+
+        /* Inserted through edit(), like every other toolbar action, so the
+           insertion is one undo step rather than a change Ctrl+Z cannot see. */
+        lib.__onInsert = function (md) {
+          dlg.close();
+          content.focus();
+          content.setSelectionRange(at.s, at.e);
+          var before = at.s > 0 && content.value[at.s - 1] !== '\n' ? '\n\n' : '';
+          edit(at.s, at.e, before + md + '\n');
+          histCommit();
+          markDirty();
+          schedulePreview();
+        };
+
+        Media.mount(lib);
+      })
+      .catch(function (err) {
+        libBtn.disabled = false;
+        Dialog.alert(err.message, { title: str('failed', 'That did not work') });
+      });
+  });
   fileIn.addEventListener('change', function () {
     if (fileIn.files[0]) upload(fileIn.files[0]);
     fileIn.value = '';

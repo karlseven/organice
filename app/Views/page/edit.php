@@ -32,6 +32,7 @@ $isDefaultLang = $lang === I18n::defaultLang();
           over elements that may not exist, so the parts that belong to the
           reading chrome (search, sidebar, table of contents) simply no-op. */ ?>
 <script src="<?= e(asset('js/app.js')) ?>" defer></script>
+<script src="<?= e(asset('js/media.js')) ?>" defer></script>
 <script src="<?= e(asset('js/editor.js')) ?>" defer></script>
 </head>
 <body class="editor-body">
@@ -164,6 +165,55 @@ $isDefaultLang = $lang === I18n::defaultLang();
       <button type="button" data-md="ul"      data-tip="<?= e(t('editor.tip_ul')) ?>" aria-label="<?= e(t('editor.tip_ul')) ?>"><?= icon('list', 15) ?></button>
       <button type="button" data-md="ol"      data-tip="<?= e(t('editor.tip_ol')) ?>" aria-label="<?= e(t('editor.tip_ol')) ?>"><?= icon('list-ordered', 15) ?></button>
       <button type="button" data-md="quote"   data-tip="<?= e(t('editor.tip_quote')) ?>" aria-label="<?= e(t('editor.tip_quote')) ?>"><?= icon('text-quote', 15) ?></button>
+      <?php
+      /* Colour. A popover of swatches rather than a native <input type="color">:
+         the palette is fixed on purpose (see Core\Markdown::COLOURS), because
+         each name maps to a variable with a light AND a dark value. A free
+         colour wheel would let an author pick something perfect on white and
+         invisible on black, and there is no way to fix that afterwards. */
+      $palette = [
+          'red' => 'tip_red', 'orange' => 'tip_orange', 'yellow' => 'tip_yellow',
+          'green' => 'tip_green', 'teal' => 'tip_teal', 'blue' => 'tip_blue',
+          'purple' => 'tip_purple', 'pink' => 'tip_pink', 'grey' => 'tip_grey',
+      ];
+      ?>
+      <span class="ed-colour" data-colour-wrap>
+        <button type="button" data-colour-toggle aria-expanded="false"
+                data-tip="<?= e(t('editor.tip_colour')) ?>" aria-label="<?= e(t('editor.tip_colour')) ?>">
+          <?= icon('palette', 15) ?>
+        </button>
+
+        <div class="colour-pop" data-colour-pop hidden>
+          <p class="colour-head"><?= e(t('editor.colour_text')) ?></p>
+          <div class="colour-row">
+            <?php foreach ($palette as $name => $key): ?>
+              <button type="button" class="swatch tx-<?= $name ?>" data-colour="<?= $name ?>"
+                      data-tip="<?= e(t('editor.' . $key)) ?>" aria-label="<?= e(t('editor.' . $key)) ?>">A</button>
+            <?php endforeach; ?>
+          </div>
+
+          <p class="colour-head"><?= e(t('editor.colour_bg')) ?></p>
+          <div class="colour-row">
+            <?php foreach ($palette as $name => $key): ?>
+              <button type="button" class="swatch mk-<?= $name ?>" data-colour-bg="<?= $name ?>"
+                      data-tip="<?= e(t('editor.' . $key)) ?>" aria-label="<?= e(t('editor.' . $key)) ?>">A</button>
+            <?php endforeach; ?>
+          </div>
+
+          <p class="colour-head"><?= e(t('editor.colour_cell')) ?></p>
+          <div class="colour-row">
+            <?php foreach ($palette as $name => $key): ?>
+              <button type="button" class="swatch cell-sw" data-colour-cell="<?= $name ?>"
+                      data-tip="<?= e(t('editor.' . $key)) ?>" aria-label="<?= e(t('editor.' . $key)) ?>"><span class="cell-<?= $name ?>"></span></button>
+            <?php endforeach; ?>
+          </div>
+
+          <button type="button" class="btn btn-ghost btn-sm colour-clear" data-colour-clear>
+            <?= e(t('editor.colour_clear')) ?>
+          </button>
+        </div>
+      </span>
+
       <span class="ed-toolbar-sep"></span>
       <button type="button" data-md="link"    data-tip="<?= e(t('editor.tip_link')) ?>" aria-label="<?= e(t('editor.tip_link')) ?>"><?= icon('link', 15) ?></button>
       <button type="button" data-md="code"    data-tip="<?= e(t('editor.tip_code')) ?>" aria-label="<?= e(t('editor.tip_code')) ?>"><?= icon('code', 15) ?></button>
@@ -179,6 +229,11 @@ $isDefaultLang = $lang === I18n::defaultLang();
         </button>
       <?php endif; ?>
       <button type="button" data-upload data-tip="<?= e(t('editor.tip_image')) ?>"><?= icon('image', 14) ?></button>
+      <?php /* The library, for reusing something already uploaded. Next to the
+                upload button because they answer the same question — "get a
+                picture in here" — and the answer is whether it exists yet. */ ?>
+      <button type="button" data-library data-tip="<?= e(t('media.tip_library')) ?>"
+              aria-label="<?= e(t('media.tip_library')) ?>"><?= icon('images', 15) ?></button>
     </div>
 
     <textarea id="ed-content" spellcheck="true" aria-label="<?= e(t('editor.content')) ?>"
@@ -234,6 +289,8 @@ window.ED = {
         'preview'     => t('editor.preview'),
         'restore'     => t('editor.restore'),
         'restoreAsk'  => t('editor.restore_ask'),
+        'colourCell'   => t('editor.colour_cell'),
+        'colourNotCell' => t('editor.colour_not_cell'),
         'deleteTitle' => t('editor.delete_title'),
         'deleteAsk'   => t('editor.delete_ask'),
         'deleteKids'  => t('editor.delete_kids'),

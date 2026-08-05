@@ -21,6 +21,7 @@ use Controllers\AssetController;
 use Controllers\AuthController;
 use Controllers\BrandController;
 use Controllers\EditorController;
+use Controllers\MediaController;
 use Controllers\PageController;
 use Controllers\SearchController;
 use Controllers\SeoController;
@@ -53,6 +54,15 @@ $routes = [
        response immutable and safe to cache hard. */
     ['GET',  '#^/file/([a-f0-9]{64})/([^/]+)$#',   [AssetController::class, 'show'],       false],
     ['POST', '#^/api/upload$#',                    [AssetController::class, 'upload'],     'auth'],
+
+    // ---- media library ----
+    ['GET',  '#^/media$#',                         [MediaController::class, 'index'],        'auth'],
+    ['GET',  '#^/api/media$#',                     [MediaController::class, 'list'],         'auth'],
+    ['POST', '#^/api/media/folder$#',              [MediaController::class, 'renameFolder'], 'auth'],
+    ['GET',  '#^/api/media/(\d+)/usage$#',         [MediaController::class, 'usage'],        'auth'],
+    ['POST', '#^/api/media/(\d+)/move$#',          [MediaController::class, 'move'],         'auth'],
+    ['POST', '#^/api/media/(\d+)/rename$#',        [MediaController::class, 'rename'],       'auth'],
+    ['POST', '#^/api/media/(\d+)/delete$#',        [MediaController::class, 'delete'],       'auth'],
 
     // ---- editing (page id, not path: a page keeps its id when it is renamed
     //      or moved, so an open editor tab never points at the wrong page) ----

@@ -90,6 +90,8 @@ than any of that.
 - Toolbar with tooltips, Ctrl+B / Ctrl+I / Ctrl+K, Tab to indent
 - The preview **keeps the tab you had open** while you edit a tab group
 - **Drag, drop or paste an image** straight into the text
+- **Media library** — browse everything uploaded to a space, organise it into
+  folders, and reuse an image without uploading it twice
 - Revision history with a **side-by-side diff** and one-click restore
 - Delete a page from the editor, with the subpage count named in the confirmation
 - Server-side syntax highlighting — no JS highlighter shipped to readers
@@ -98,6 +100,8 @@ than any of that.
 - Callouts — note, tip, warning, danger
 - Tabs and code groups
 - Collapsible sections, cards, numbered steps, file attachments
+- **Text and table-cell colour** from a nine-colour palette that stays legible
+  in both light and dark themes
 - **Privacy-preserving embeds** — a YouTube or Vimeo embed renders as a
   thumbnail; nothing contacts the video host until a reader presses play
 
@@ -180,6 +184,15 @@ mysql -u root -p -D organice < database/procedures.sql
 > at runtime with `ERROR 1267: Illegal mix of collations`, on the first page
 > load, looking exactly like an application bug. If you ever see it: fix the
 > database default, then **re-run `procedures.sql`**.
+
+**Upgrading an existing install?** Apply anything in `database/migrations/` that
+you have not run yet, then re-run `procedures.sql`. Each migration is guarded
+against `information_schema` so running it twice is safe.
+
+```bash
+mysql -u root -p -D organice < database/migrations/2026-08-04-media-folders.sql
+mysql -u root -p -D organice < database/procedures.sql
+```
 
 ### 3. Create the first admin
 
@@ -296,7 +309,8 @@ organice/
 ├── config/config.php     bootstrap: version guards, .env, autoloader, session, CSP
 ├── database/
 │   ├── schema.sql        15 tables
-│   ├── procedures.sql    55 stored procedures — every query in the app
+│   ├── procedures.sql    62 stored procedures — every query in the app
+│   ├── migrations/       schema changes for databases created earlier
 │   ├── setup.sql         optional least-privilege DB user
 │   ├── install.sh        installer (Linux/macOS)
 │   └── install.ps1       installer (Windows)
@@ -333,7 +347,7 @@ Two rules hold everywhere in this codebase:
 | `spaces`, `space_members` | documentation sets and per-space roles |
 | `pages`, `page_locales`, `page_revisions` | the tree, one row per language, full history |
 | `page_search`, `page_search_cjk` | FULLTEXT — the second with an ngram parser |
-| `assets` | uploaded files, content-addressed by hash |
+| `assets` | uploaded files, content-addressed by hash, with a virtual `folder` label for the media library |
 | `redirects` | old paths kept alive after a rename |
 | `settings`, `audit_log`, `rate_limits` | site configuration, an admin action trail, throttling |
 
@@ -421,7 +435,7 @@ Stated plainly, so you can rule it out fast:
 | `docs/DEPLOYMENT.md` | VPS setup, both layouts, Apache and nginx, the pre-flight checklist |
 | `docs/SECURITY.md` | threat model and every protection, with its limits |
 | `docs/BLOCKS.md` | the Markdown extensions authors can use |
-| `docs/EDITOR.md` | the editor, the Markdown round trip, and why rich text was removed |
+| `docs/EDITOR.md` | the editor, the media library, and why rich text was removed |
 | `docs/I18N.md` | locale routing, translations, search in CJK and Thai |
 | `docs/ICONS.md` | page icons, the bundled Lucide set, the picker |
 | `docs/CREDITS.md` | vendored third-party material and its licences |

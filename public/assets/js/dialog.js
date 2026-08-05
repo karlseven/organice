@@ -214,6 +214,63 @@
         placeholder: opts.placeholder,
         okLabel: opts.okLabel || strings.ok
       });
+    },
+
+    /**
+     * A dialog holding a piece of UI rather than a sentence — the media
+     * library, and anything like it later.
+     *
+     * Takes a NODE, never an HTML string. Everything else here builds its
+     * content with textContent for exactly one reason: a dialog that accepted
+     * markup would eventually be handed a filename or a page title, and that is
+     * an XSS hole with a friendly API. Making the caller produce the node keeps
+     * that decision where the markup is actually known to be trusted.
+     *
+     * Returns { body, close } rather than a promise: a panel has no single
+     * answer to resolve with, and its content decides when it is done.
+     */
+    panel: function (opts) {
+      opts = opts || {};
+
+      document.querySelectorAll('dialog.dlg').forEach(function (old) {
+        if (old.open) old.close();
+        old.remove();
+      });
+
+      var prev = document.activeElement;
+
+      var dlg = el('dialog', 'dlg dlg-panel' + (opts.wide ? ' dlg-wide' : ''));
+      if (opts.title) dlg.appendChild(el('h2', 'dlg-title', opts.title));
+
+      var body = el('div', 'dlg-body');
+      if (opts.node) body.appendChild(opts.node);
+      dlg.appendChild(body);
+
+      var close = el('button', 'dlg-x', '×');
+      close.type = 'button';
+      close.setAttribute('aria-label', strings.close || 'Close');
+      dlg.appendChild(close);
+
+      document.body.appendChild(dlg);
+      if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
+
+      var api = {
+        body: body,
+        close: function () {
+          if (dlg.open && dlg.close) dlg.close();
+          dlg.remove();
+          /* Focus goes back where it was. Without this it lands on <body> and
+             the next Tab starts from the top of the page. */
+          if (prev && prev.focus) prev.focus();
+        }
+      };
+
+      close.addEventListener('click', api.close);
+      /* Escape fires `cancel` on a native <dialog>; the node still has to be
+         removed, or the next open() finds a straggler. */
+      dlg.addEventListener('cancel', function () { api.close(); });
+
+      return api;
     }
   };
 })();

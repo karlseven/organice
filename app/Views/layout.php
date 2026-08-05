@@ -79,6 +79,11 @@ foreach ($langs as $code):
 <script src="<?= e(asset('js/dialog.js')) ?>" defer></script>
 <script src="<?= e(asset('js/symbols.js')) ?>" defer></script>
 <script src="<?= e(asset('js/app.js')) ?>" defer></script>
+<?php /* Only the /media page needs this; every other page would download 14 KB
+          to find no [data-media] element. */ ?>
+<?php if (!empty($needsMedia)): ?>
+<script src="<?= e(asset('js/media.js')) ?>" defer></script>
+<?php endif; ?>
 </head>
 <body>
 <a class="skip" href="#main"><?= e(t('nav.skip')) ?></a>
@@ -185,6 +190,28 @@ window.T = <?= json_encode([
     'confirmTitle' => t('dialog.confirm_title'),
     'deleteLabel'  => t('dialog.delete'),
     // symbol picker
+    // media library (used by the /media page and the editor's picker alike)
+    'mediaTitle'        => t('media.title'),
+    'mediaRoot'         => t('media.root'),
+    'mediaCount'        => t('media.count'),
+    'mediaCountOne'     => t('media.count_one'),
+    'mediaDeleteUsedOne' => t('media.delete_used_one'),
+    'mediaEmpty'        => t('media.empty'),
+    'mediaEmptyFolder'  => t('media.empty_folder'),
+    'mediaNoMatch'      => t('media.no_match'),
+    'mediaRename'       => t('media.rename'),
+    'mediaRenameFolder' => t('media.rename_folder'),
+    'mediaNewFolder'    => t('media.new_folder'),
+    'mediaFolderName'   => t('media.folder_name'),
+    'mediaNewName'      => t('media.file_name'),
+    'mediaCopy'         => t('media.copy'),
+    'mediaDelete'       => t('media.delete'),
+    'mediaDeleteAsk'    => t('media.delete_ask'),
+    'mediaDeleteUsed'   => t('media.delete_used'),
+    'mediaUploading'    => t('media.uploading'),
+    'mediaFail'         => t('media.fail'),
+    'uploadFail'        => t('editor.upload_fail'),
+
     'symbolsTitle'  => t('symbols.title'),
     'symbolsSearch' => t('symbols.search'),
     'symbolsNone'   => t('symbols.none'),

@@ -19,6 +19,21 @@
      itself. Kept here rather than inline so the two selects share one copy. */
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 
+  /* Author colour palette — see Core\Markdown::COLOURS and docs/BLOCKS.md.
+     Only the TEXT colour is defined per theme; the highlight and table-cell
+     tints are derived from it with color-mix against `transparent`, which lands
+     correctly on a white or a near-black page without a second set of values.
+     These are the light-theme values, picked for contrast on --bg. */
+  --tx-red:    #c0392b;
+  --tx-orange: #b35309;
+  --tx-yellow: #8a6d00;   /* not a bright yellow: unreadable on white */
+  --tx-green:  #1f7a3d;
+  --tx-teal:   #0f7b76;
+  --tx-blue:   #1f5fd0;
+  --tx-purple: #6b3fbf;
+  --tx-pink:   #b5297a;
+  --tx-grey:   #6b7280;
+
   --sidebar-w: 280px;
   --toc-w:     220px;
   --topbar-h:  56px;
@@ -55,6 +70,17 @@
     --border:   #2a2f38;
     --shadow:   0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
     color-scheme: dark;
+
+    /* Lightened for a near-black page. Same hues, enough luminance to read. */
+    --tx-red:    #f28b82;
+    --tx-orange: #f5b26b;
+    --tx-yellow: #f2d16b;
+    --tx-green:  #7ddb9b;
+    --tx-teal:   #6fd6cf;
+    --tx-blue:   #8ab4ff;
+    --tx-purple: #c4a7ff;
+    --tx-pink:   #ff9ecb;
+    --tx-grey:   #a8b0bd;
   }
   :root[data-theme="auto"] .only-dark  { display: inline-flex; }
   :root[data-theme="auto"] .only-light { display: none; }
@@ -67,8 +93,80 @@
   --fg:       #e6e9ef;
   --fg-muted: #99a1af;
   --border:   #2a2f38;
+  --tx-red:    #f28b82;
+  --tx-orange: #f5b26b;
+  --tx-yellow: #f2d16b;
+  --tx-green:  #7ddb9b;
+  --tx-teal:   #6fd6cf;
+  --tx-blue:   #8ab4ff;
+  --tx-purple: #c4a7ff;
+  --tx-pink:   #ff9ecb;
+  --tx-grey:   #a8b0bd;
   --shadow:   0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
   color-scheme: dark;
+}
+
+/* ---------------------------------------------------------------------------
+   Author colours: {red}(text), {bg:red}(text), and {bg:red} on a table cell.
+   --------------------------------------------------------------------------- */
+/*
+ * Each colour class declares ONLY its hue, into --c. The rules further down
+ * decide what --c is used for — letters, a highlight tint, a cell wash, a
+ * swatch in the toolbar. Adding a tenth colour is one line here plus one
+ * variable, instead of four parallel lists that can fall out of step.
+ */
+.tx-red,    .mk-red,    .cell-red    { --c: var(--tx-red); }
+.tx-orange, .mk-orange, .cell-orange { --c: var(--tx-orange); }
+.tx-yellow, .mk-yellow, .cell-yellow { --c: var(--tx-yellow); }
+.tx-green,  .mk-green,  .cell-green  { --c: var(--tx-green); }
+.tx-teal,   .mk-teal,   .cell-teal   { --c: var(--tx-teal); }
+.tx-blue,   .mk-blue,   .cell-blue   { --c: var(--tx-blue); }
+.tx-purple, .mk-purple, .cell-purple { --c: var(--tx-purple); }
+.tx-pink,   .mk-pink,   .cell-pink   { --c: var(--tx-pink); }
+.tx-grey,   .mk-grey,   .cell-grey   { --c: var(--tx-grey); }
+
+.tx-red, .tx-orange, .tx-yellow, .tx-green, .tx-teal,
+.tx-blue, .tx-purple, .tx-pink, .tx-grey { color: var(--c); }
+
+/* Plain ==highlight==. The browser default is a fixed yellow with black text,
+   which is invisible-adjacent on a dark page. */
+mark {
+  padding: .1em .25em; border-radius: 3px;
+  background: color-mix(in srgb, var(--tx-yellow) 30%, transparent);
+  color: inherit;
+}
+
+/* Tints are MIXED WITH TRANSPARENT rather than given their own values: the
+   result composites over whatever the page background is, so one definition is
+   right in both themes. `color: inherit` keeps the text at normal body
+   contrast — coloured text on a tint of the same hue is the most common way
+   this kind of feature becomes unreadable. */
+.mk-red, .mk-orange, .mk-yellow, .mk-green, .mk-teal,
+.mk-blue, .mk-purple, .mk-pink, .mk-grey {
+  background: color-mix(in srgb, var(--c) 26%, transparent);
+  color: inherit;
+}
+
+/*
+ * Cell shading is weaker — a whole cell is far more area, and at 26% a table of
+ * shaded rows is unreadable.
+ *
+ * Scoped under .prose AND naming the element, so it outranks
+ * `.prose th { background: var(--bg-soft) }`. Without the .prose prefix the two
+ * selectors tie on specificity and the later one wins, which silently left
+ * every shaded HEADER cell grey while body cells worked — the kind of bug that
+ * only shows up in a table that happens to colour its header.
+ */
+.prose td.cell-red,   .prose th.cell-red,
+.prose td.cell-orange,.prose th.cell-orange,
+.prose td.cell-yellow,.prose th.cell-yellow,
+.prose td.cell-green, .prose th.cell-green,
+.prose td.cell-teal,  .prose th.cell-teal,
+.prose td.cell-blue,  .prose th.cell-blue,
+.prose td.cell-purple,.prose th.cell-purple,
+.prose td.cell-pink,  .prose th.cell-pink,
+.prose td.cell-grey,  .prose th.cell-grey {
+  background: color-mix(in srgb, var(--c) 16%, transparent);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -1230,6 +1328,196 @@ label { font-size: 13px; font-weight: 600; color: var(--fg-muted); }
 
   .editor-panes.show-preview .pane-write { display: none; }
   .editor-panes.show-preview .pane-preview { display: flex; }
+}
+
+/* ---------------------------------------------------------------------------
+   colour picker in the editor toolbar
+   --------------------------------------------------------------------------- */
+.ed-colour { position: relative; display: inline-flex; }
+
+.colour-pop {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 40;
+  width: max-content; padding: 10px;
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--bg); box-shadow: var(--shadow);
+}
+.colour-head {
+  margin: 0 0 6px; font-size: 11px; font-weight: 600;
+  color: var(--fg-muted); text-transform: uppercase; letter-spacing: .04em;
+}
+.colour-row { display: flex; gap: 4px; margin-bottom: 10px; }
+
+/* Each swatch previews what it does — a coloured A for text, an A on a tint
+   for highlight, a filled block for a cell. A row of identical dots would make
+   the three sections indistinguishable. */
+.swatch {
+  width: 26px; height: 26px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg); cursor: pointer;
+  font-size: 13px; font-weight: 700; line-height: 1;
+}
+.swatch:hover { border-color: var(--accent); }
+.swatch:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/*
+ * The swatches must SHOW their colour, and two things were stopping them.
+ *
+ * `.ed-toolbar button { color: var(--fg-muted) }` is element+class and beats a
+ * bare `.tx-red`, so every letter came out grey. And `.swatch { background }`
+ * ties with `.mk-red` but is declared later, so it won — the highlight row was
+ * nine identical blank squares. Both are fixed by qualifying with .colour-pop
+ * rather than by reordering, which would only move the problem.
+ */
+.colour-pop .swatch.tx-red, .colour-pop .swatch.tx-orange, .colour-pop .swatch.tx-yellow,
+.colour-pop .swatch.tx-green, .colour-pop .swatch.tx-teal, .colour-pop .swatch.tx-blue,
+.colour-pop .swatch.tx-purple, .colour-pop .swatch.tx-pink, .colour-pop .swatch.tx-grey {
+  color: var(--c);
+}
+.colour-pop .swatch.mk-red, .colour-pop .swatch.mk-orange, .colour-pop .swatch.mk-yellow,
+.colour-pop .swatch.mk-green, .colour-pop .swatch.mk-teal, .colour-pop .swatch.mk-blue,
+.colour-pop .swatch.mk-purple, .colour-pop .swatch.mk-pink, .colour-pop .swatch.mk-grey {
+  background: color-mix(in srgb, var(--c) 40%, var(--bg));
+  color: var(--fg);
+}
+
+/* The cell preview is a filled block. Its swatch carries `cell-<colour>` on an
+   inner span, which the .prose td/th rules deliberately do not match — so the
+   fill is stated here, stronger than the table's 16% because a 26px square at
+   that opacity reads as empty. */
+.cell-sw { padding: 3px; }
+.cell-sw span {
+  display: block; width: 100%; height: 100%; border-radius: 3px;
+  background: color-mix(in srgb, var(--c) 55%, var(--bg));
+}
+.colour-clear { width: 100%; margin-top: 2px; }
+
+/* ===========================================================================
+   media library — the /media page and the editor's picker share every rule
+   =========================================================================== */
+.media-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.media-intro { margin: 0 0 16px; max-width: 70ch; }
+
+.media-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin-bottom: 12px;
+}
+.media-bar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.media-search input { width: 200px; }
+
+.media-crumbs { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; min-height: 30px; }
+.crumb {
+  padding: 3px 8px; border: 0; border-radius: 6px;
+  background: none; color: var(--fg-muted); font-size: 14px; cursor: pointer;
+}
+.crumb:hover { background: var(--bg-soft); color: var(--fg); }
+.crumb-sep { color: var(--fg-muted); opacity: .6; }
+/* A breadcrumb is a drop target — it is how a file moves UP a level. */
+.crumb.drop-into { background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--accent); }
+
+/* auto-fill, not auto-fit: with auto-fit a single image stretches to the full
+   row width, which looks like a bug rather than a thumbnail. */
+.media-grid {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  min-height: 160px;
+  padding: 4px;
+  border-radius: 10px;
+}
+.media-grid.drop-files {
+  outline: 2px dashed var(--accent); outline-offset: -4px;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.media-grid[aria-busy="true"] { opacity: .55; }
+
+.media-tile {
+  position: relative; display: flex; flex-direction: column; gap: 4px;
+  margin: 0; padding: 8px;
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--bg); color: inherit; text-align: left;
+  cursor: pointer;
+}
+.media-tile:hover { border-color: var(--accent); }
+.media-item.sel { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
+.media-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.media-tile.drop-into { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+
+.media-thumb {
+  display: flex; align-items: center; justify-content: center;
+  aspect-ratio: 4 / 3; overflow: hidden;
+  border-radius: 6px; background: var(--bg-sunk);
+}
+/* `contain`, not `cover`: this is a picker. Cropping a screenshot to a square
+   can hide the very detail someone is using to tell two of them apart. */
+.media-thumb img { width: 100%; height: 100%; object-fit: contain; }
+.media-fileicon { font-size: 13px; font-weight: 600; color: var(--fg-muted); letter-spacing: .04em; }
+
+.media-folder .media-folder-ico {
+  display: flex; align-items: center; justify-content: center;
+  aspect-ratio: 4 / 3; color: var(--accent);
+}
+.media-folder .media-folder-ico svg { width: 40%; height: auto; }
+
+.media-tile-name {
+  font-size: 13px; line-height: 1.3;
+  /* Two lines then ellipsis — one line truncates "screenshot-settings-01.png"
+     to something indistinguishable from its neighbours. */
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; word-break: break-word;
+}
+.media-tile-meta { font-size: 12px; color: var(--fg-muted); }
+
+.media-actions {
+  position: absolute; top: 6px; right: 6px;
+  display: flex; gap: 2px;
+  padding: 2px; border-radius: 8px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(2px);
+  opacity: 0; transition: opacity .12s ease;
+}
+.media-tile:hover .media-actions,
+.media-tile:focus-within .media-actions { opacity: 1; }
+.media-act {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0;
+  border: 0; border-radius: 6px; background: none;
+  color: var(--fg-muted); cursor: pointer;
+}
+.media-act svg { width: 15px; height: 15px; }
+.media-act:hover { background: var(--bg-sunk); color: var(--fg); }
+.media-act[data-act="delete"]:hover { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+.crumb-rename { width: 24px; height: 24px; }
+
+.media-tile.copied::after {
+  content: "✓";
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--accent); font-size: 28px; font-weight: 700;
+}
+
+.media-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
+.media-note { margin: 8px 2px; }
+
+/* The picker dialog is a working surface, not a question. */
+.dlg-wide { width: min(900px, calc(100vw - 32px)); }
+.dlg-panel { padding: 18px; }
+.dlg-panel .dlg-title { margin: 0 0 12px; }
+.dlg-body { max-height: min(70vh, 620px); overflow: auto; }
+.dlg-x {
+  position: absolute; top: 10px; right: 12px;
+  width: 30px; height: 30px; padding: 0;
+  border: 0; border-radius: 8px; background: none;
+  color: var(--fg-muted); font-size: 22px; line-height: 1; cursor: pointer;
+}
+.dlg-x:hover { background: var(--bg-soft); color: var(--fg); }
+
+@media (max-width: 640px) {
+  .media-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+  .media-search input { width: 140px; }
+  /* No hover on touch, so the per-file actions would be unreachable. */
+  .media-actions { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {

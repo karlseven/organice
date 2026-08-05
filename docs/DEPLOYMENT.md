@@ -76,6 +76,11 @@ mysql -u root -p -D organice < database/schema.sql
 mysql -u root -p -D organice < database/procedures.sql
 ```
 
+**Upgrading rather than installing?** Apply any migration in
+`database/migrations/` you have not run, then re-run `procedures.sql` — the new
+procedures select columns the migrations add. Each one is guarded against
+`information_schema`, so running it twice is safe.
+
 `schema.sql` starts with `ALTER DATABASE ... COLLATE utf8mb4_0900_ai_ci`. Do not
 remove it: stored-procedure parameters inherit the database's default collation
 at CREATE time, and a mismatch makes every `column = p_param` comparison fail
@@ -284,7 +289,8 @@ php scripts/check-links.php          # report broken internal links
 php scripts/rerender.php             # re-render every page after a parser change
 ```
 
-`gc-assets.php` is the one to schedule. Deleting a page does **not** delete its
+`gc-assets.php` is the one to schedule. Deleting a page — or removing a file
+from the media library — does **not** delete its
 uploaded blobs — deliberately, since the same file may be used by several pages
 and a revision may still reference it.
 

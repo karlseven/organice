@@ -716,6 +716,109 @@ BEGIN
   DELETE FROM assets WHERE id = p_id;
 END $$
 
+-- ---------------------------------------------------------------------------
+-- media library
+-- ---------------------------------------------------------------------------
+
+-- One space's uploads, optionally one folder, newest first.
+--
+-- p_folder is matched exactly rather than as a prefix: the library shows ONE
+-- level at a time, the way a file manager does, so opening 'screenshots' must
+-- not also pour in everything from 'screenshots/v2'.
+--
+-- p_q is a filename substring, and when it is given the folder filter is
+-- dropped — a search that only looked in the folder you happen to have open is
+-- a search that cannot find what you are looking for.
+DROP PROCEDURE IF EXISTS sp_assets_list $$
+CREATE PROCEDURE sp_assets_list(
+  IN p_space BIGINT UNSIGNED, IN p_folder VARCHAR(255), IN p_q VARCHAR(190))
+BEGIN
+  SELECT a.id, a.sha256, a.filename, a.mime, a.size_bytes, a.folder,
+         a.created_at, u.username AS uploader
+    FROM assets a
+    LEFT JOIN users u ON u.id = a.uploaded_by
+   WHERE a.space_id = p_space
+     AND (p_q <> '' OR a.folder = p_folder)
+     AND (p_q  = '' OR a.filename LIKE CONCAT('%', p_q, '%'))
+   ORDER BY a.id DESC
+   LIMIT 500;
+END $$
+
+-- Every folder that has something in it, plus how many.
+--
+-- Folders live only as a label on the rows, so an EMPTY folder has nowhere to
+-- exist — which is why the controller keeps a placeholder row out of this by
+-- listing distinct prefixes as well. See Controllers\MediaController::folders.
+DROP PROCEDURE IF EXISTS sp_asset_folders $$
+CREATE PROCEDURE sp_asset_folders(IN p_space BIGINT UNSIGNED)
+BEGIN
+  SELECT folder, COUNT(*) AS n
+    FROM assets
+   WHERE space_id = p_space
+   GROUP BY folder
+   ORDER BY folder;
+END $$
+
+DROP PROCEDURE IF EXISTS sp_asset_by_id $$
+CREATE PROCEDURE sp_asset_by_id(IN p_id BIGINT UNSIGNED)
+BEGIN
+  SELECT * FROM assets WHERE id = p_id LIMIT 1;
+END $$
+
+-- Move ONE asset to a folder. Scoped by space so a crafted id cannot reach
+-- into another space's library.
+DROP PROCEDURE IF EXISTS sp_asset_move $$
+CREATE PROCEDURE sp_asset_move(
+  IN p_id BIGINT UNSIGNED, IN p_space BIGINT UNSIGNED, IN p_folder VARCHAR(255))
+BEGIN
+  UPDATE assets SET folder = p_folder WHERE id = p_id AND space_id = p_space;
+END $$
+
+DROP PROCEDURE IF EXISTS sp_asset_rename $$
+CREATE PROCEDURE sp_asset_rename(
+  IN p_id BIGINT UNSIGNED, IN p_space BIGINT UNSIGNED, IN p_name VARCHAR(255))
+BEGIN
+  UPDATE assets SET filename = p_name WHERE id = p_id AND space_id = p_space;
+END $$
+
+-- Rename a folder, and every folder nested under it.
+--
+-- Two statements because 'a/b' and 'a/b/c' are different rows: the first moves
+-- the folder itself, the second re-prefixes its descendants. Doing it with one
+-- LIKE 'a/b%' would also catch a sibling called 'a/bicycles'.
+DROP PROCEDURE IF EXISTS sp_asset_folder_rename $$
+CREATE PROCEDURE sp_asset_folder_rename(
+  IN p_space BIGINT UNSIGNED, IN p_from VARCHAR(255), IN p_to VARCHAR(255))
+BEGIN
+  UPDATE assets SET folder = p_to
+   WHERE space_id = p_space AND folder = p_from;
+
+  UPDATE assets
+     SET folder = CONCAT(p_to, SUBSTRING(folder, CHAR_LENGTH(p_from) + 1))
+   WHERE space_id = p_space AND folder LIKE CONCAT(p_from, '/%');
+END $$
+
+-- Which pages currently reference this file.
+--
+-- Checked BEFORE a delete so the confirmation can say "used on 3 pages"
+-- instead of silently breaking them. Only CURRENT revisions are scanned:
+-- old revisions are historical records and are expected to reference things
+-- that have since gone.
+DROP PROCEDURE IF EXISTS sp_asset_usage $$
+CREATE PROCEDURE sp_asset_usage(IN p_space BIGINT UNSIGNED, IN p_sha CHAR(64))
+BEGIN
+  SELECT DISTINCT p.id, p.path, COALESCE(l.title, p.title) AS title
+    FROM pages p
+    JOIN page_revisions r ON r.page_id = p.id
+    LEFT JOIN page_locales l ON l.page_id = p.id AND l.lang = r.lang
+   WHERE p.space_id = p_space
+     AND r.id = (SELECT MAX(r2.id) FROM page_revisions r2
+                  WHERE r2.page_id = r.page_id AND r2.lang = r.lang)
+     AND r.content_md LIKE CONCAT('%', p_sha, '%')
+   ORDER BY p.path
+   LIMIT 50;
+END $$
+
 DROP PROCEDURE IF EXISTS sp_asset_by_sha $$
 CREATE PROCEDURE sp_asset_by_sha(IN p_sha CHAR(64))
 BEGIN

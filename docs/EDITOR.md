@@ -40,6 +40,34 @@ block inserted directly under a line of prose sits flush against it — which is
 fine, because the parser lets tables, lists, headings, quotes, fences and `:::`
 containers all interrupt a paragraph.
 
+## The media library
+
+`/media` browses everything uploaded to a space, and the same UI opens as a
+picker from the editor's toolbar to reuse an image without uploading it twice.
+Both are `Views/partials/media-library.php` — the editor fetches it from
+`/media?partial=1` on first open, rather than a second grid written in
+JavaScript with its own copy of the labels.
+
+**Folders are virtual.** `assets.folder` is a label like `screenshots/v2`; the
+bytes stay content-addressed at `storage/uploads/<hash>` and never move. So
+filing an image is one UPDATE, and it cannot break a page already pointing at
+it. An empty folder has nowhere to exist — a folder is only the name its rows
+carry — so a newly created one is held client-side until something lands in it.
+
+Two details worth keeping if this is touched:
+
+- **Search ignores the open folder.** A search that only looked where you
+  already are cannot find what you are looking for.
+- **The picker captures the caret before the dialog opens.** `showModal()` takes
+  focus and the textarea's selection collapses to 0, so an image chosen from the
+  library would otherwise land at the top of the document instead of where the
+  author was working.
+
+Deleting from the library asks the server which pages currently reference the
+file and names the count in the confirmation. It removes the `assets` row only;
+the blob stays for `scripts/gc-assets.php`, because an older revision may still
+reference those bytes and history is meant to be immutable.
+
 ## Deleting a page
 
 The trash button in the editor bar, behind a confirm dialog. It sits **away from
